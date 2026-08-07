@@ -6,7 +6,7 @@
     state: directory
     mode: '2775'
     owner: root
-    group: "{{ admin }}"
+    group: root
     recurse: false
 
 - name: Enable IPv6 Route Information Option (RIO) for Matter/Thread Border Routers
@@ -46,8 +46,8 @@
     - { path: /opt/containerd/openclaw/data, owner: '1000', group: '1000', recurse: true, service: 'openclaw' }
     - { path: /opt/containerd/openclaw/workspace, owner: '1000', group: '1000', recurse: true, service: 'openclaw' }
     - { path: /opt/containerd/vaultwarden/data, service: 'vaultwarden' }
-    - { path: /opt/containerd/immich, group: "{{ admin }}", service: 'immich' }
-    - { path: /opt/containerd/immich/model-cache, group: "{{ admin }}", service: 'immich' }
+    - { path: /opt/containerd/immich, group: "root", service: 'immich' }
+    - { path: /opt/containerd/immich/model-cache, group: "root", service: 'immich' }
     - { path: /opt/containerd/cloudflared, service: 'cloudflared' }
     - { path: /opt/containerd/adguard/work, service: 'adguard' }
     - { path: /opt/containerd/adguard/conf, service: 'adguard' }
@@ -65,7 +65,7 @@
     dest: /opt/containerd/prometheus/config/prometheus.yml
     mode: '0644'
     owner: root
-    group: "{{ admin }}"
+    group: root
   when: "'prometheus' in (docker_apps_services | default([]))"
 
 - name: Deploy Docker Compose files
@@ -75,7 +75,7 @@
     dest: "/opt/containerd/{{ item }}/docker-compose.yml"
     mode: '0644'
     owner: root
-    group: "{{ admin }}"
+    group: root
   loop: "{{ docker_apps_services | default([]) }}"
   vars:
     current_service: "{{ item }}"
@@ -101,7 +101,7 @@
     dest: /opt/containerd/caddy/Dockerfile
     mode: '0644'
     owner: root
-    group: "{{ admin }}"
+    group: root
   when: "'caddy' in (docker_apps_services | default([]))"
 
 - name: Deploy Caddyfile configuration
@@ -111,7 +111,7 @@
     dest: /opt/containerd/caddy/Caddyfile
     mode: '0644'
     owner: root
-    group: "{{ admin }}"
+    group: root
   register: caddyfile_status
   when: "'caddy' in (docker_apps_services | default([]))"
 

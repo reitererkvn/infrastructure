@@ -122,6 +122,26 @@
   when: "'caddy' in (docker_apps_services | default([])) and caddyfile_status.changed"
   ignore_errors: true
 
+- name: Check if Semaphore container is running
+  become: true
+  ansible.builtin.command: docker ps -q -f name=semaphore
+  register: semaphore_running
+  changed_when: false
+  when: "'semaphore' in (docker_apps_services | default([]))"
+  tags: [ docker_apps ]
+
+- name: Start Semaphore safely (only if stopped)
+  become: true
+  community.docker.docker_compose_v2:
+    project_src: "/opt/containerd/semaphore/"
+    state: present
+    wait: true
+  when: >
+    'semaphore' in (docker_apps_services | default([]))
+    and semaphore_running.stdout | default('') == ''
+    and 'infrastructure_only' not in ansible_run_tags
+  tags: [ docker_apps ]
+
 - name: Restart Docker Compose Stacks
   become: true
   community.docker.docker_compose_v2:

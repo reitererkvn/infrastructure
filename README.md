@@ -1,61 +1,76 @@
-# Sovereign Infrastructure
+# Infrastructure as Code (IaC) Automation Repository
 
-This repository contains the complete Infrastructure-as-Code (IaC) setup for a modern, hybrid homelab and desktop environment. It uses **Ansible** to deterministically configure bare-metal systems (Debian NAS and CachyOS Desktop) from a minimal installation up to a fully running, containerized, and backed-up state.
+This repository contains the central Ansible Monorepo for automating and managing a hybrid infrastructure environment, consisting of a bare-metal desktop workstation (Arch/CachyOS) and a network-attached storage server (Debian).
 
-## 🏗️ Architecture & Roles
+The primary goal of this repository is to ensure **100% reproducibility, idempotency, and security** across all system levels, adhering to modern DevOps and Infrastructure as Code (IaC) standards.
 
-The infrastructure is split into specific, modular roles. The `site.yml` playbook maps these roles to the respective hosts defined in `inventory.ini`.
+---
 
-### NAS Roles (`nas-01` - Debian)
-*   **`nas_storage`**: Idempotently mounts specific BTRFS subvolumes via labels (e.g., `LABEL=NAS-SSD`) and creates them if they don't exist. Manages `mergerfs` pools and configures `snapper` templates.
-*   **`nas_base`**: Installs essential system packages, configures base DNS (e.g., `resolv.conf`), and deploys a cross-platform Zsh environment.
-*   **`nas_backups`**: Deploys dynamic sync scripts (Restic/Rclone) and configures Systemd timers. Includes dynamic block-device discovery to gracefully spin down HDDs (via `hdparm`).
-*   **`nas_docker`**: Manages the core self-hosted stack (Paperless, Grafana, Prometheus, Home Assistant, Vaultwarden, Immich). It dynamically templates `docker-compose.yml` and securely injects `.env` files via Ansible Vault.
+## 🏛️ Architecture & Topology
 
-### Desktop Roles (`homeserver` - CachyOS/Arch)
-*   **`desktop_base`**: Configures the Arch/CachyOS baseline. Deploys package manager configurations (`pacman.conf`, `makepkg.conf`), the `greetd` display manager, specific udev rules, and maintenance routines (like `paru` cache cleanup and btrfs snapshot timers).
+The infrastructure is orchestrated from a single master playbook (`site.yml`) mapping roles dynamically via `inventory.ini`.
 
-## 🔒 Secret Management (Zero-Leak Policy)
+*   **Desktop Node (`desktops`)**: High-performance workstation running CachyOS (Arch Linux).
+*   **Storage Node (`nas`)**: Debian-based server handling containerized workloads, automated backups, and file storage.
 
-This repository follows a strict Zero-Leak Policy. No plaintext passwords, API keys, or `.env` files are tracked in Git.
-Instead, all secrets are stored in a single encrypted file:
+## 🎯 Design Principles
+
+1.  **Strict Separation of Concerns**: This repository strictly manages system-level provisioning (packages, mounts, services, docker stacks). User-space configurations (Window Managers, Dotfiles, shell themes) are deliberately isolated in a separate, unprivileged dotfiles repository.
+2.  **Idempotency**: All tasks are designed to be run multiple times without causing unintended side-effects. Hardware configurations (like BTRFS mounts) use UUID-agnostic filesystem labels (e.g., `LABEL=NAS-SSD`) to remain hardware-independent.
+3.  **Zero-Leak Security**: No plaintext secrets, API keys, or `.env` files are tracked in version control. All sensitive data is managed via **Ansible Vault**.
+4.  **Modular Execution**: Roles are highly cohesive and loosely coupled. Execution is governed by Ansible tags, allowing granular updates (e.g., updating only Docker containers without running base OS checks).
+
+---
+
+## 📦 Role Breakdown
+
+### NAS Infrastructure (`nas`)
+
+*   **`nas_storage`**: Automates BTRFS subvolume creation, MergerFS pooling, and configures Snapper for automated snapshots.
+*   **`nas_base`**: Bootstraps the core OS, configures DNS (`resolv.conf`), package managers, and deploys a cross-platform Zsh environment.
+*   **`nas_backups`**: Deploys multi-tiered backup strategies. Orchestrates local snapshots, cloud synchronization via Restic/Rclone, and configures dynamic hardware-level scripts (e.g., intelligent HDD spindown logic via `hdparm`).
+*   **`nas_docker`**: Deploys the self-hosted application stack (Paperless, Home Assistant, Prometheus, Grafana, Immich). Dynamically templates `docker-compose.yml` files and securely injects credentials at runtime.
+
+### Desktop Infrastructure (`desktops`)
+
+*   **`desktop_base`**: Configures the Arch/CachyOS baseline. Deploys package manager configurations (`pacman.conf`, `makepkg.conf`), the `greetd` display manager, advanced Udev hardware rules, and automated maintenance timers (BTRFS cleanup, AUR cache clearing).
+
+---
+
+## 🔒 Secret Management (Ansible Vault)
+
+To maintain public repository security, all credentials (database passwords, OAuth tokens, API keys) are stored in an encrypted Ansible Vault file:
 `group_vars/nas/secrets.yml`
 
-This file is encrypted using **Ansible Vault** (AES-256).
+This file is encrypted using AES-256. During deployment, Ansible decrypts this file in-memory and injects the variables into Jinja2 templates (e.g., generating temporary `.env` files for Docker containers).
 
-### Decrypting / Editing Secrets
-To edit the secrets or add new ones:
+### Managing Secrets
+To view or edit the encrypted secrets, the Ansible Vault Master Password is required:
 ```bash
 ansible-vault edit group_vars/nas/secrets.yml
 ```
 
-## 🚀 How to Use / Deploy
+---
 
-### Prerequisites
-1. A fresh Debian / Arch (CachyOS) installation.
-2. Ansible installed on the control node.
-3. Your Ansible Vault Master Password.
+## 🚀 Deployment & CI/CD Integration
 
-### Deployment
-To execute the playbook across your infrastructure:
+This repository is designed to be executed both manually via the CLI and automatically via CI/CD pipelines (e.g., Ansible Semaphore).
+
+### Manual Execution (CLI)
 
 ```bash
-# Clone the repository
-git clone git@github.com:reitererkvn/infrastructure.git /opt/infrastructure
-cd /opt/infrastructure
-
-# Run the master playbook
+# Execute the full infrastructure deployment
 ansible-playbook site.yml -i inventory.ini --ask-vault-pass
+
+# Execute granular updates using tags (e.g., only update Docker configurations)
+ansible-playbook site.yml -i inventory.ini --ask-vault-pass --tags docker
+
+# Target a specific environment
+ansible-playbook site.yml -i inventory.ini --ask-vault-pass -l nas
 ```
 
-## 🛠️ For Others (Adapting this Repo)
-
-If you are a developer looking to use this setup as a template for your own homelab:
-1.  **Inventory:** Update `inventory.ini` with your own IP addresses and hostnames.
-2.  **Storage:** Review `roles/nas_storage/tasks/main.yml`. Adjust the `LABEL=...` variables to match your actual filesystem labels.
-3.  **Secrets:** Overwrite `group_vars/nas/secrets.yml` with your own Ansible Vault file.
-4.  **Desktop Configs:** Review `roles/desktop_base/files/etc/pacman.conf` and `udev/rules.d/` as they contain hardware-specific configurations (like specific gaming mice reset rules).
-
-## 🗑️ Separation of Concerns
-This repository ONLY handles system-level configuration and infrastructure provisioning (Root/Admin Space).
-User-specific dotfiles (like Window Manager configs, Editor settings, aliases) are strictly separated and managed via a dedicated dotfiles repository in the User Space (`~/.dotfiles`).
+### Semaphore (CI/CD) Integration
+When integrating with an automation UI like Semaphore:
+1. Define a Key Store Credential for the **Vault Password**.
+2. Link this repository.
+3. Create Task Templates pointing to `site.yml`. Use the "Limit" field (e.g., `nas` or `desktops`) and "Extra CLI Arguments" (e.g., `--tags docker`) to mimic granular playbook execution.

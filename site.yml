@@ -3,13 +3,13 @@
   hosts: nas
   become: yes
   roles:
-    - nas_base
-    - nas_storage
-    - nas_backups
-    - nas_docker
+    - { role: nas_base, tags: ['base', 'nas'] }
+    - { role: nas_storage, tags: ['storage', 'nas'] }
+    - { role: nas_backups, tags: ['backups', 'nas'] }
+    - { role: nas_docker, tags: ['docker', 'nas'] }
 
 - name: Desktop Infrastructure
   hosts: desktops
   become: yes
   roles:
-    - desktop_base
+    - { role: desktop_base, tags: ['base', 'desktop'] }

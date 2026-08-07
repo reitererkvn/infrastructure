@@ -10,16 +10,6 @@ automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
 
-http:
-  server_port: 8122
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - 127.0.0.1
-    - ::1
-    - 192.168.178.0/24
-    - 172.16.0.0/12
-    - 10.0.0.0/8
-    - 100.64.0.0/10
 
 google_assistant:
   project_id: ha-rnet-002ade

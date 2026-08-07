@@ -1,0 +1,14 @@
+---
+docker_apps_services:
+  - semaphore
+  - prometheus
+  - grafana
+  - homeassistant
+  - caddy
+  - openclaw
+  - vaultwarden
+  - immich
+  - cloudflared
+  - adguard
+  - paperless
+  - ollama

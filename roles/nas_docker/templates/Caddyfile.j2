@@ -1,0 +1,63 @@
+# Semaphore (Ansible UI)
+nas-01.taildfad90.ts.net:3000 {
+    tls {
+        get_certificate tailscale
+    }
+    reverse_proxy 127.0.0.1:13000
+}
+
+# Grafana (Monitoring Dashboards)
+nas-01.taildfad90.ts.net:3001 {
+    tls {
+        get_certificate tailscale
+    }
+    reverse_proxy 127.0.0.1:13001
+}
+
+# Prometheus (Metrics)
+nas-01.taildfad90.ts.net:9090 {
+    tls {
+        get_certificate tailscale
+    }
+    reverse_proxy 127.0.0.1:19090
+}
+
+# Home Assistant (Public Access via INWX Domain)
+ha.rnet.at {
+    tls {
+        dns cloudflare {$CLOUDFLARE_API_TOKEN}
+    }
+    reverse_proxy 127.0.0.1:8122
+}
+
+# Immich (Public Access via INWX Domain)
+immich.rnet.at {
+    tls {
+        dns cloudflare {$CLOUDFLARE_API_TOKEN}
+    }
+    reverse_proxy 127.0.0.1:2285
+}
+
+# Vaultwarden (Public Access via INWX Domain)
+vault.rnet.at {
+    tls {
+        dns cloudflare {$CLOUDFLARE_API_TOKEN}
+    }
+    reverse_proxy 127.0.0.1:8000
+}
+
+# AdGuard Home (Public Access cia IWNX Domain)
+adguard.rnet.at {
+    tls {
+        dns cloudflare {$CLOUDFLARE_API_TOKEN}
+    }
+    reverse_proxy 127.0.0.1:8081
+}
+
+# Paperless-ngx (Public Access via INWX Domain)
+docs.rnet.at {
+    tls {
+        dns cloudflare {$CLOUDFLARE_API_TOKEN}
+    }
+    reverse_proxy 127.0.0.1:8002
+}

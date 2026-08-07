@@ -1,0 +1,14 @@
+---
+- name: Apply Desktop Configuration
+  hosts: desktops
+  become: yes
+  roles:
+    # - role: desktop_base
+
+- name: Apply NAS Configuration
+  hosts: nas
+  become: yes
+  roles:
+    # - role: nas_base
+    # - role: nas_docker
+    # - role: nas_backups

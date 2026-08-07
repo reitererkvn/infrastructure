@@ -1,5 +1,5 @@
 #!/bin/bash
-# Sovereign Maintenance Protocol v4 (POSIX Compliant & Linted)
+# Arch Linux Maintenance Protocol v4 (POSIX Compliant & Linted)
 # OS: EndeavourOS (Arch) | Filesystem: Btrfs
 
 set -u

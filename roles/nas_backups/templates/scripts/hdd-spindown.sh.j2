@@ -5,5 +5,5 @@
 # Get all block devices that have a LABEL starting with "HDD-"
 for KNAME in $(lsblk -l -o LABEL,KNAME | awk '$1 ~ /^HDD-/ {print $2}'); do
     echo "Issuing spindown for /dev/$KNAME (Label matches HDD-*)"
-    /usr/bin/hdparm -y /dev/$KNAME
+    /sbin/hdparm -y /dev/$KNAME
 done

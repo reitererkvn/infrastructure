@@ -32,6 +32,7 @@
     name: "{{ item }}"
     enabled: yes
     state: started
+    daemon_reload: yes
   loop:
     - hdd-spindown.service
     - homeserver-cloud-backup.path

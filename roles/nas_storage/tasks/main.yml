@@ -1,0 +1,97 @@
+---
+- name: Ensure mount points exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /mnt/HDD-01
+    - /mnt/HDD-01/backups
+    - /mnt/HDD-01/immich
+    - /mnt/HDD-01/immich/.snapshots
+    - /opt/containerd/immich
+    - /.snapshots
+    - /home/.snapshots
+    - /opt/containerd/immich/.snapshots
+    - /lib/immich
+
+# SSD Mounts (assuming the base installation mounted / and created rootfs)
+- name: Mount SSD Subvolumes
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: "LABEL=NAS-SSD"
+    fstype: btrfs
+    opts: "subvol={{ item.subvol }},compress=zstd,ssd"
+    state: mounted
+  loop:
+    - { path: '/opt/containerd/immich', subvol: '@immich' }
+    - { path: '/.snapshots', subvol: '@snapshots' }
+    - { path: '/home/.snapshots', subvol: '@home_snapshots' }
+    - { path: '/opt/containerd/immich/.snapshots', subvol: '@immich_snapshots' }
+
+# HDD Mounts & Creation
+- name: Mount HDD root
+  ansible.posix.mount:
+    path: /mnt/HDD-01
+    src: LABEL=HDD-01
+    fstype: btrfs
+    opts: subvol=/,noatime,compress=zstd
+    state: mounted
+
+- name: Ensure HDD subvolumes exist
+  ansible.builtin.command: btrfs subvolume create /mnt/HDD-01/{{ item }}
+  args:
+    creates: /mnt/HDD-01/{{ item }}
+  loop:
+    - backups
+    - immich
+    - immich_snapshots
+
+- name: Mount HDD Subvolumes
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: LABEL=HDD-01
+    fstype: btrfs
+    opts: "subvol=/{{ item.subvol }},noatime,compress=zstd"
+    state: mounted
+  loop:
+    - { path: '/mnt/HDD-01/backups', subvol: 'backups' }
+    - { path: '/mnt/HDD-01/immich', subvol: 'immich' }
+    - { path: '/mnt/HDD-01/immich/.snapshots', subvol: 'immich_snapshots' }
+
+# MergerFS Mount
+- name: Install mergerfs package
+  ansible.builtin.apt:
+    name: mergerfs
+    state: present
+
+- name: Mount MergerFS for Immich
+  ansible.posix.mount:
+    path: /lib/immich
+    src: /opt/containerd/immich/data:/mnt/HDD-01/immich
+    fstype: mergerfs
+    opts: defaults,allow_other,cache.files=off,use_ino,category.create=ff,minfreespace=20G,fsname=mergerfs_immich
+    state: mounted
+
+# Snapper Configuration
+- name: Ensure snapper is installed
+  ansible.builtin.apt:
+    name: snapper
+    state: present
+
+- name: Create snapper configs
+  ansible.builtin.command: snapper -c {{ item.name }} create-config {{ item.subvol_path }}
+  args:
+    creates: /etc/snapper/configs/{{ item.name }}
+  loop:
+    - { name: 'root', subvol_path: '/' }
+    - { name: 'home', subvol_path: '/home' }
+
+- name: Deploy snapper configurations
+  ansible.builtin.template:
+    src: snapper.j2
+    dest: /etc/snapper/configs/{{ item.name }}
+    mode: '0644'
+  loop:
+    - { name: 'root', subvol_path: '/' }
+    - { name: 'home', subvol_path: '/home' }

@@ -1,0 +1,20 @@
+# /etc/fstab: static file system information.
+#
+# Use 'blkid' to print the universally unique identifier for a device; this may
+# be used with UUID= as a more robust way to name devices that works even if
+# disks are added and removed. See fstab(5).
+#
+# <file system>             <mount point>  <type>  <options>  <dump>  <pass>
+UUID=3C8B-6508                            /boot/efi      vfat    fmask=0137,dmask=0027 0 2
+UUID=662bd11a-df8e-4d02-9b9f-300bb421a162 /              btrfs   subvol=/@,noatime,compress=zstd 0 0
+UUID=662bd11a-df8e-4d02-9b9f-300bb421a162 /home          btrfs   subvol=/@home,noatime,compress=zstd 0 0
+UUID=662bd11a-df8e-4d02-9b9f-300bb421a162 /var/cache     btrfs   subvol=/@cache,noatime,compress=zstd 0 0
+UUID=662bd11a-df8e-4d02-9b9f-300bb421a162 /var/log       btrfs   subvol=/@log,noatime,compress=zstd 0 0
+tmpfs                                     /tmp           tmpfs   defaults,noatime,mode=1777 0 0
+UUID=662bd11a-df8e-4d02-9b9f-300bb421a162 /.snapshots    btrfs   subvol=/@snapshots_root,noatime,compress=zstd 0 0
+UUID=662bd11a-df8e-4d02-9b9f-300bb421a162 /home/.snapshots btrfs subvol=/@snapshots_home,noatime,compress=zstd 0 0
+UUID=662bd11a-df8e-4d02-9b9f-300bb421a162 /home/kevin/.local/share/Steam btrfs subvol=/@steam,noatime 0 0
+UUID=662bd11a-df8e-4d02-9b9f-300bb421a162 /root/.npm	 btrfs	subvol=/@npm,rw,noatime,compress=zstd:3,ssd,discard=async,space_cache=v2,subvol=@npm  0  0
+# UUID=dacb1a22-5346-4015-91e2-bc8cb9a6814c /mnt/HDD-01	 btrfs	 subvol=/,noatime,compress=zstd 0 0
+# UUID=dacb1a22-5346-4015-91e2-bc8cb9a6814c /mnt/HDD-01/nc_data btrfs subvol=/nc_data,noatime,compress=zstd 0 0
+# UUID=dacb1a22-5346-4015-91e2-bc8cb9a6814c /mnt/HDD-01/backups btrfs subvol=/backups,noatime,compress=zstd 0 0

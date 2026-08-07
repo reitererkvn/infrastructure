@@ -1,0 +1,59 @@
+#!/bin/bash
+# nas_local_snapshot_sync.sh
+# Spiegelt lokale SSD-Snapshots auf die HDD für lokale Redundanz.
+# SRE-Fix: Korrekte inkrementelle btrfs-send Logik über SSD-basierte Parents.
+
+DEST_BASE="/mnt/HDD-01/backups/nas"
+TRIGGER_DIR="/var/lib/nas-sync-triggers"
+
+sync_local() {
+    local src_dir=$1
+    local dst_dir=$2
+
+    # Erstelle Zielstruktur falls nötig
+    sudo mkdir -p "$dst_dir"
+
+    # Sortiere Snapshots numerisch (Snapper Struktur)
+    # Nutze find um Fehler bei leeren Verzeichnissen zu vermeiden
+    for snap in $(sudo find "$src_dir" -maxdepth 1 -name "[0-9]*" | sort -V); do
+        id=$(basename "$snap")
+        snap_path="$snap/snapshot"
+
+        if [ ! -d "$dst_dir/$id" ]; then
+            echo "--> Lokale Spiegelung ID $id nach $dst_dir..."
+
+            # Finde den neuesten gemeinsamen Snapshot auf Quelle (SSD) und Ziel (HDD)
+            local last_id=""
+            # Wir suchen rückwärts durch die bereits gesicherten IDs auf der HDD
+            for hdd_id in $(ls -1 "$dst_dir" 2>/dev/null | grep -E "^[0-9]+$" | sort -nr); do
+                if [ -d "$src_dir/$hdd_id/snapshot" ]; then
+                    last_id=$hdd_id
+                    break
+                fi
+            done
+
+            if [ -z "$last_id" ]; then
+                echo "    (Initialer / Vollständiger Snapshot Send)"
+                sudo btrfs send "$snap_path" | sudo btrfs receive "$dst_dir/"
+            else
+                echo "    (Inkrementell gegen SSD-Parent ID $last_id)"
+                sudo btrfs send -p "$src_dir/$last_id/snapshot" "$snap_path" | sudo btrfs receive "$dst_dir/"
+            fi
+
+            # Snapper-Struktur flachklopfen für einfachere Restic-Sicherung
+            sudo mv "$dst_dir/snapshot" "$dst_dir/$id"
+        fi
+    done
+}
+
+echo "[+] Starte lokalen Snapshot-Sync (SSD -> HDD)..."
+sync_local "/.snapshots" "$DEST_BASE/root"
+sync_local "/home/.snapshots" "$DEST_BASE/home"
+sync_local "/opt/containerd/immich/.snapshots" "$DEST_BASE/immich"
+
+echo "[+] Erzeuge Snapper-Snapshot für Immich-Archiv auf HDD..."
+sudo snapper -c immich-hdd create --description "Nightly Archive Backup"
+
+echo "[+] Lokaler Sync abgeschlossen. Erstelle Trigger-Datei für Cloud-Backup (SSD-based)..."
+sudo mkdir -p "$TRIGGER_DIR"
+sudo touch "$TRIGGER_DIR/nas_local_sync.done"

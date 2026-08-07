@@ -1,0 +1,11 @@
+[terminal]
+# Das VT (Virtual Terminal), auf dem der Login erscheint
+vt = 1
+
+[default_session]
+# --time: Zeigt die Uhrzeit an
+# --remember: Merkt sich den letzten User
+# --cmd: Der Befehl, der nach dem Login ausgeführt wird
+[default_session]
+command = "tuigreet --time --remember --theme 'border=#62CDFF;text=#FFFFFF;prompt=#62CDFF;time=#FFFFFF;action=#a3be8c' --cmd '/bin/bash -c \"$HOME/.local/bin/start-session.sh\"'"
+user = "greeter"

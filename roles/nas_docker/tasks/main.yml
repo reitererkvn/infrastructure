@@ -1,0 +1,135 @@
+---
+- name: Ensure base configuration directory exists
+  become: true
+  ansible.builtin.file:
+    path: /opt/containerd
+    state: directory
+    mode: '2775'
+    owner: root
+    group: "{{ admin }}"
+    recurse: false
+
+- name: Enable IPv6 Route Information Option (RIO) for Matter/Thread Border Routers
+  become: true
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: '64'
+    state: present
+    reload: yes
+    sysctl_file: /etc/sysctl.d/99-ipv6-matter.conf
+  loop:
+    - net.ipv6.conf.all.accept_ra_rt_info_max_plen
+    - net.ipv6.conf.default.accept_ra_rt_info_max_plen
+    - net.ipv6.conf.eth0.accept_ra_rt_info_max_plen
+  when: "'homeassistant' in (docker_apps_services | default([]))"
+
+- name: Ensure service directories exist
+  become: true
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode | default('0755') }}"
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.group | default('root') }}"
+    recurse: "{{ item.recurse | default(false) }}"
+  loop:
+    - { path: /opt/containerd/semaphore/db, owner: '70', group: '70', recurse: true, service: 'semaphore' }
+    - { path: /opt/containerd/semaphore/playbooks, service: 'semaphore' }
+    - { path: /opt/containerd/homeassistant/config, service: 'homeassistant' }
+    - { path: /opt/containerd/homeassistant/matter, service: 'homeassistant' }
+    - { path: /opt/containerd/prometheus/config, service: 'prometheus' }
+    - { path: /opt/containerd/prometheus/data, owner: '65534', recurse: true, service: 'prometheus' }
+    - { path: /opt/containerd/grafana/data, owner: '472', group: '472', recurse: true, service: 'grafana' }
+    - { path: /opt/containerd/caddy, service: 'caddy' }
+    - { path: /opt/containerd/caddy/data, service: 'caddy' }
+    - { path: /opt/containerd/caddy/config, service: 'caddy' }
+    - { path: /opt/containerd/openclaw/data, owner: '1000', group: '1000', recurse: true, service: 'openclaw' }
+    - { path: /opt/containerd/openclaw/workspace, owner: '1000', group: '1000', recurse: true, service: 'openclaw' }
+    - { path: /opt/containerd/vaultwarden/data, service: 'vaultwarden' }
+    - { path: /opt/containerd/immich, group: "{{ admin }}", service: 'immich' }
+    - { path: /opt/containerd/immich/model-cache, group: "{{ admin }}", service: 'immich' }
+    - { path: /opt/containerd/cloudflared, service: 'cloudflared' }
+    - { path: /opt/containerd/adguard/work, service: 'adguard' }
+    - { path: /opt/containerd/adguard/conf, service: 'adguard' }
+    - { path: /opt/containerd/paperless/data, service: 'paperless' }
+    - { path: /opt/containerd/paperless/db, service: 'paperless' }
+    - { path: /opt/containerd/paperless/consume, service: 'paperless' }
+    - { path: /mnt/HDD-01/paperless/media, service: 'paperless' }
+    - { path: /opt/containerd/ollama/data, service: 'ollama' }
+  when: "item.service in (docker_apps_services | default([]))"
+
+- name: Deploy Prometheus configuration
+  become: true
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: /opt/containerd/prometheus/config/prometheus.yml
+    mode: '0644'
+    owner: root
+    group: "{{ admin }}"
+  when: "'prometheus' in (docker_apps_services | default([]))"
+
+- name: Deploy Docker Compose files
+  become: true
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "/opt/containerd/{{ item }}/docker-compose.yml"
+    mode: '0644'
+    owner: root
+    group: "{{ admin }}"
+  loop: "{{ docker_apps_services | default([]) }}"
+  vars:
+    current_service: "{{ item }}"
+
+- name: Deploy Environment variables (.env)
+  become: true
+  ansible.builtin.template:
+    src: "{{ item }}.env.j2"
+    dest: "/opt/containerd/{{ item }}/.env"
+    mode: '0600'
+    owner: root
+    group: root
+  loop:
+    - paperless
+    # - immich
+    # - grafana
+  when: "item in (docker_apps_services | default([]))"
+
+- name: Deploy Caddy Dockerfile
+  become: true
+  ansible.builtin.template:
+    src: caddy_Dockerfile.j2
+    dest: /opt/containerd/caddy/Dockerfile
+    mode: '0644'
+    owner: root
+    group: "{{ admin }}"
+  when: "'caddy' in (docker_apps_services | default([]))"
+
+- name: Deploy Caddyfile configuration
+  become: true
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: /opt/containerd/caddy/Caddyfile
+    mode: '0644'
+    owner: root
+    group: "{{ admin }}"
+  register: caddyfile_status
+  when: "'caddy' in (docker_apps_services | default([]))"
+
+- name: Reload Caddy to apply changes
+  become: true
+  ansible.builtin.command:
+    cmd: docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+  when: "'caddy' in (docker_apps_services | default([])) and caddyfile_status.changed"
+  ignore_errors: true
+
+- name: Restart Docker Compose Stacks
+  become: true
+  community.docker.docker_compose_v2:
+    project_src: "/opt/containerd/{{ item }}/"
+    state: present
+    wait: true
+  loop: "{{ docker_apps_services | default([]) }}"
+  vars:
+    current_service: "{{ item }}"
+  when: "item != 'semaphore' or 'infrastructure_only' in ansible_run_tags"
+  tags: [ infrastructure_only, docker_apps ]

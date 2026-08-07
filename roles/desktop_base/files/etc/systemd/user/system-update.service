@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly system update trigger
+
+[Service]
+Type=oneshot
+# User= und Group= KOMPLETT GELÖSCHT.
+# Systemd weiß inhärent, welcher User diesen Service ausführt.
+
+ExecStart=/usr/bin/notify-send -t 0 "system update" "wöchentliches update initiiert..." --icon=system-software-update --urgency=critical
+ExecStartPost=/usr/bin/env ${TERMINAL} -e /usr/local/bin/system-update.sh

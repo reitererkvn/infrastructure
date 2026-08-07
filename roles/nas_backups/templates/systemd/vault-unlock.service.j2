@@ -1,0 +1,13 @@
+[Unit]
+Description=Automated Bitwarden Vault Unlock
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/system-dotfiles/usr/local/bin/vault-unlock.sh
+RemainAfterExit=yes
+User=root
+
+[Install]
+WantedBy=multi-user.target

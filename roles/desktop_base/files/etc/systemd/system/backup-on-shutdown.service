@@ -1,0 +1,28 @@
+[Unit]
+Description=Push Btrfs Snapshots to NAS on Shutdown
+DefaultDependencies=no
+# Muss beim Shutdown VOR dem Netzwerk-Stop und VOR dem Shutdown-Target laufen
+Requires=network-online.target
+After=network.target network-online.target systemd-networkd.service systemd-resolved.service tailscaled.service
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+# Service bleibt nach ExecStart "aktiv", damit ExecStop beim Shutdown triggert
+RemainAfterExit=yes
+User=root
+Group=root
+Environment="HOME=/root"
+# ExecStart tut nichts beim Booten
+ExecStart=/usr/bin/true
+# Hier passiert die eigentliche Arbeit beim Herunterfahren
+ExecStop=/usr/local/bin/upload_snapshots.sh
+# Erhöhter Timeout für große Transfers (15 Min)
+TimeoutStopSec=900
+StandardOutput=journal+console
+StandardError=journal+console
+TTYPath=/dev/console
+
+[Install]
+# Wird beim normalen Systemstart eingehängt
+WantedBy=multi-user.target

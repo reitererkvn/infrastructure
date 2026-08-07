@@ -1,0 +1,3 @@
+#!/bin/bash
+# Befreit Chunks, die zu weniger als 50% belegt sind (schont die SSD)
+/usr/bin/btrfs balance start -dusage=50 -musage=50 /

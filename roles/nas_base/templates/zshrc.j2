@@ -1,0 +1,44 @@
+# Return early if not running interactively to prevent Ansible junk warnings
+[[ $- != *i* ]] && return
+
+# history
+HISTFILE=~/.zsh_history
+HISTSIZE=10000
+SAVEHIST=10000
+setopt INC_APPEND_HISTORY
+setopt HIST_IGNORE_DUPS
+setopt HIST_IGNORE_SPACE
+setopt correct
+
+# plugins
+{% if ansible_os_family == 'Debian' %}
+source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+source /usr/share/doc/fzf/examples/key-bindings.zsh
+source /usr/share/doc/fzf/examples/completion.zsh
+source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+{% else %}
+source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+source /usr/share/fzf/key-bindings.zsh
+source /usr/share/fzf/completion.zsh
+source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+{% endif %}
+ZSH_AUTOSUGGEST_STRATEGY=(history completion)
+ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=8'
+
+eval "$(zoxide init zsh)"
+
+# customization
+PROMPT='󰉋 %~ %% '
+
+# Zsh Tastatur-Fix
+bindkey  "^[[H"   beginning-of-line       # Pos1
+bindkey  "^[[F"   end-of-line             # Ende
+bindkey  "^[[3~"  delete-char             # Entf
+bindkey  "^[[1;5C" forward-word           # Strg + Pfeil Rechts
+bindkey  "^[[1;5D" backward-word          # Strg + Pfeil Links
+
+# alias
+[[ -f "$HOME/.alias" ]] && source "$HOME/.alias"
+[[ -f "$HOME/.vaultwarden" ]] && source "$HOME/.vaultwarden"
+
+export PATH="$HOME/.local/bin:$PATH"

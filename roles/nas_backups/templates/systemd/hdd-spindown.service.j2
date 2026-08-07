@@ -1,0 +1,10 @@
+[Unit]
+Description=Force HDD Spindown after Boot
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/hdd-spindown.sh
+
+[Install]
+WantedBy=default.target

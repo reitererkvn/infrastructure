@@ -1,0 +1,30 @@
+#!/bin/bash
+# vault-unlock.sh (NAS AUTOMATION)
+# Entsperrt den Bitwarden Root-Tresor automatisch auf dem NAS.
+
+SESSION_DIR="/run/vault"
+SESSION_FILE="$SESSION_DIR/bw_session"
+PASS_FILE="/root/.bw_password"
+
+if [ ! -f "$PASS_FILE" ]; then
+    echo "[Fehler] $PASS_FILE nicht gefunden. Automatischer Unlock nicht möglich."
+    exit 1
+fi
+
+sudo mkdir -p "$SESSION_DIR"
+sudo chown -R root:root "$SESSION_DIR"
+sudo chmod 755 "$SESSION_DIR"
+
+echo "[Vault] Unlocking Bitwarden Vault (NAS Automated)..."
+
+export BW_PASSWORD=$(sudo cat "$PASS_FILE")
+BW_SESSION_TMP=$(sudo HOME=/root BW_PASSWORD="$BW_PASSWORD" /usr/local/bin/bw unlock --passwordenv BW_PASSWORD --raw)
+
+if [ $? -eq 0 ] && [ -n "$BW_SESSION_TMP" ]; then
+    printf "%s" "$BW_SESSION_TMP" | sudo tee "$SESSION_FILE" > /dev/null
+    sudo chmod 600 "$SESSION_FILE"
+    echo "[Erfolg] Tresor entsperrt. Session gespeichert in $SESSION_FILE"
+else
+    echo "[Fehler] Entsperren fehlgeschlagen."
+    exit 1
+fi

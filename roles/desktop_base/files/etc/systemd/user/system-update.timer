@@ -1,0 +1,11 @@
+[Unit]
+Description=Timer for Weekly System Update
+
+[Timer]
+# Löst jeden Montag um 10:00 Uhr aus
+OnCalendar=Mon *-*-* 10:00:00
+# Sichert die Ausführung: War der PC am Montag aus, wird das Update sofort beim nächsten Boot nachgeholt.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

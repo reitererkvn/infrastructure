@@ -1,0 +1,70 @@
+---
+- name: Update apt cache and upgrade system
+  ansible.builtin.apt:
+    update_cache: yes
+    upgrade: dist
+    cache_valid_time: 3600
+
+- name: Install essential base packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - wget
+      - git
+      - vim
+      - btop
+      - tmux
+      - jq
+      - sqlite3
+      - btrfs-progs
+      - hdparm
+      - rclone
+      - restic
+      - inotify-tools
+      - rsync
+      - sudo
+      - ufw
+      - fail2ban
+      - zsh
+      - fzf
+      - zoxide
+      - zsh-autosuggestions
+      - zsh-syntax-highlighting
+    state: present
+
+- name: Configure DNS resolution (resolv.conf)
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    content: |
+      domain fritz.box
+      search fritz.box
+      nameserver 192.168.178.1
+    mode: '0644'
+    owner: root
+    group: root
+
+- name: Install Docker and Docker Compose
+  ansible.builtin.apt:
+    name:
+      - docker.io
+      - docker-compose-v2
+    state: present
+
+- name: Ensure Docker service is running and enabled
+  ansible.builtin.systemd:
+    name: docker
+    enabled: yes
+    state: started
+
+- name: Change kevin default shell to zsh
+  ansible.builtin.user:
+    name: kevin
+    shell: /usr/bin/zsh
+
+- name: Deploy .zshrc
+  ansible.builtin.template:
+    src: zshrc.j2
+    dest: /home/kevin/.zshrc
+    owner: kevin
+    group: kevin
+    mode: '0644'

@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly system update trigger
+
+[Service]
+Type=oneshot
+
+# WICHTIG: Keine User/Group/Wayland-Variablen mehr!
+Environment=MY_TERMINAL=/usr/bin/kitty
+
+ExecStart=/usr/bin/notify-send "system update" "wöchentliches update initiiert..." --icon=system-software-update --urgency=high
+ExecStartPost=${MY_TERMINAL} -e /usr/local/bin/system-update.sh

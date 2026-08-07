@@ -1,0 +1,2 @@
+# Nutzt den robusten Modalias-String fuer das G903 Kabel (C091)
+ACTION=="remove", SUBSYSTEM=="usb", ENV{MODALIAS}=="usb:v046DpC091*", RUN+="/usr/bin/systemd-run --service-type=oneshot /usr/local/bin/g903-reset.sh"

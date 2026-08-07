@@ -1,0 +1,25 @@
+[Unit]
+Description=Globaler Rclone Mount für %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Explizite Übergabe der Config von kevin an root
+ExecStart=/usr/bin/rclone mount %i:/ /mnt/%i \
+--allow-other \
+--vfs-cache-mode full \
+--vfs-cache-max-age 1h \
+--rc \
+--rc-addr 127.0.0.1:5572 \
+--rc-no-auth \
+--dir-cache-time 1000h
+
+# Sauberer FUSE-Unmount
+ExecStop=/usr/bin/fusermount3 -uz /mnt/%i
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+

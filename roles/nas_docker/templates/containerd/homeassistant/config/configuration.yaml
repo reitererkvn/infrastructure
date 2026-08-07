@@ -1,0 +1,38 @@
+
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+http:
+  server_port: 8122
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - ::1
+    - 192.168.178.0/24
+    - 172.16.0.0/12
+    - 10.0.0.0/8
+    - 100.64.0.0/10
+
+google_assistant:
+  project_id: ha-rnet-002ade
+  service_account: !include google_service_account.json
+  report_state: true
+  entity_config:
+    media_player.bathroom_speaker:
+      expose: false
+    media_player.living_room_speaker:
+      expose: false
+    media_player.tv:
+      expose: false
+    media_player.tv_2:
+      expose: false
+    media_player.playstation_5:
+      expose: false

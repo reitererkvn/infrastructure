@@ -1,0 +1,40 @@
+---
+- name: Deploy Backup Scripts
+  ansible.builtin.template:
+    src: "scripts/{{ item }}.j2"
+    dest: "/usr/local/bin/{{ item }}"
+    mode: '0755'
+  loop:
+    - hdd-spindown.sh
+    - immich-mover.sh
+    - nas_cloud_sync.sh
+    - nas_local_snapshot_sync.sh
+
+- name: Deploy Systemd Services and Timers
+  ansible.builtin.template:
+    src: "systemd/{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: '0644'
+  loop:
+    - hdd-spindown.service
+    - homeserver-cloud-backup.service
+    - homeserver-cloud-backup.path
+    - immich-tiering.service
+    - immich-tiering.timer
+    - nas-cloud-backup.service
+    - nas-cloud-backup.path
+    - nas-local-sync.service
+    - nas-local-sync.timer
+  notify: Reload Systemd
+
+- name: Enable Backup Timers and Paths
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  loop:
+    - hdd-spindown.service
+    - homeserver-cloud-backup.path
+    - immich-tiering.timer
+    - nas-cloud-backup.path
+    - nas-local-sync.timer

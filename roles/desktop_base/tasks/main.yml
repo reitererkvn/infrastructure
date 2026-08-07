@@ -1,0 +1,83 @@
+---
+- name: Deploy Pacman configuration
+  ansible.builtin.copy:
+    src: etc/pacman.conf
+    dest: /etc/pacman.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Deploy Makepkg configuration
+  ansible.builtin.copy:
+    src: etc/makepkg.conf
+    dest: /etc/makepkg.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Deploy CPU Power config
+  ansible.builtin.copy:
+    src: etc/cpupower
+    dest: /etc/default/cpupower
+    owner: root
+    group: root
+    mode: '0644'
+  ignore_errors: yes
+
+- name: Deploy Greetd Config
+  ansible.builtin.copy:
+    src: etc/greetd/config.toml
+    dest: /etc/greetd/config.toml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Deploy Udev Rules
+  ansible.builtin.copy:
+    src: etc/udev/rules.d/99-g903-reset.rules
+    dest: /etc/udev/rules.d/99-g903-reset.rules
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload Udev
+
+- name: Deploy Local Scripts
+  ansible.builtin.copy:
+    src: "usr/local/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - btrfs-cleanup
+    - hyprsysteminfo
+    - system-update.sh
+    - g903-reset.sh
+    - upload_snapshots.sh
+    - pam-bw-unlock.sh
+
+- name: Deploy Systemd Services and Timers
+  ansible.builtin.copy:
+    src: "etc/systemd/system/{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - snapshot-backup.timer
+    - snapshot-backup.service
+    - system-update.timer
+    - system-update.service
+    - backup-on-shutdown.service
+    - rclone-localmount@.service
+  notify: Reload Systemd
+
+- name: Enable System Timers and Services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  loop:
+    - snapshot-backup.timer
+    - system-update.timer
+    - backup-on-shutdown.service

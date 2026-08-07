@@ -1,0 +1,9 @@
+#!/bin/bash
+# Dynamically find all disks labeled with "HDD-" and issue spindown
+# Managed by Ansible
+
+# Get all block devices that have a LABEL starting with "HDD-"
+for KNAME in $(lsblk -l -o LABEL,KNAME | awk '$1 ~ /^HDD-/ {print $2}'); do
+    echo "Issuing spindown for /dev/$KNAME (Label matches HDD-*)"
+    /usr/bin/hdparm -y /dev/$KNAME
+done

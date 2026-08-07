@@ -1,3 +1,8 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # handlers file for nas_base
+
+- name: Restart Docker
+  ansible.builtin.systemd:
+    name: docker
+    state: restarted

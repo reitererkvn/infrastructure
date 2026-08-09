@@ -2,7 +2,7 @@
 - name: Ensure base configuration directory exists
   become: true
   ansible.builtin.file:
-    path: /opt/containerd
+    path: /opt/docker
     state: directory
     mode: '2775'
     owner: root
@@ -33,36 +33,36 @@
     group: "{{ item.group | default('root') }}"
     recurse: "{{ item.recurse | default(false) }}"
   loop:
-    - { path: /opt/containerd/semaphore/db, owner: '70', group: '70', recurse: true, service: 'semaphore' }
-    - { path: /opt/containerd/semaphore/playbooks, service: 'semaphore' }
-    - { path: /opt/containerd/homeassistant/config, service: 'homeassistant' }
-    - { path: /opt/containerd/homeassistant/matter, service: 'homeassistant' }
-    - { path: /opt/containerd/prometheus/config, service: 'prometheus' }
-    - { path: /opt/containerd/prometheus/data, owner: '65534', recurse: true, service: 'prometheus' }
-    - { path: /opt/containerd/grafana/data, owner: '472', group: '472', recurse: true, service: 'grafana' }
-    - { path: /opt/containerd/caddy, service: 'caddy' }
-    - { path: /opt/containerd/caddy/data, service: 'caddy' }
-    - { path: /opt/containerd/caddy/config, service: 'caddy' }
-    - { path: /opt/containerd/openclaw/data, owner: '1000', group: '1000', recurse: true, service: 'openclaw' }
-    - { path: /opt/containerd/openclaw/workspace, owner: '1000', group: '1000', recurse: true, service: 'openclaw' }
-    - { path: /opt/containerd/vaultwarden/data, service: 'vaultwarden' }
-    - { path: /opt/containerd/immich, group: "root", service: 'immich' }
-    - { path: /opt/containerd/immich/model-cache, group: "root", service: 'immich' }
-    - { path: /opt/containerd/cloudflared, service: 'cloudflared' }
-    - { path: /opt/containerd/adguard/work, service: 'adguard' }
-    - { path: /opt/containerd/adguard/conf, service: 'adguard' }
-    - { path: /opt/containerd/paperless/data, service: 'paperless' }
-    - { path: /opt/containerd/paperless/db, service: 'paperless' }
-    - { path: /opt/containerd/paperless/consume, service: 'paperless' }
+    - { path: /opt/docker/semaphore/db, owner: '70', group: '70', recurse: true, service: 'semaphore' }
+    - { path: /opt/docker/semaphore/playbooks, service: 'semaphore' }
+    - { path: /opt/docker/homeassistant/config, service: 'homeassistant' }
+    - { path: /opt/docker/homeassistant/matter, service: 'homeassistant' }
+    - { path: /opt/docker/prometheus/config, service: 'prometheus' }
+    - { path: /opt/docker/prometheus/data, owner: '65534', recurse: true, service: 'prometheus' }
+    - { path: /opt/docker/grafana/data, owner: '472', group: '472', recurse: true, service: 'grafana' }
+    - { path: /opt/docker/caddy, service: 'caddy' }
+    - { path: /opt/docker/caddy/data, service: 'caddy' }
+    - { path: /opt/docker/caddy/config, service: 'caddy' }
+    - { path: /opt/docker/openclaw/data, owner: '1000', group: '1000', recurse: true, service: 'openclaw' }
+    - { path: /opt/docker/openclaw/workspace, owner: '1000', group: '1000', recurse: true, service: 'openclaw' }
+    - { path: /opt/docker/vaultwarden/data, service: 'vaultwarden' }
+    - { path: /opt/docker/immich, group: "root", service: 'immich' }
+    - { path: /opt/docker/immich/model-cache, group: "root", service: 'immich' }
+    - { path: /opt/docker/cloudflared, service: 'cloudflared' }
+    - { path: /opt/docker/adguard/work, service: 'adguard' }
+    - { path: /opt/docker/adguard/conf, service: 'adguard' }
+    - { path: /opt/docker/paperless/data, service: 'paperless' }
+    - { path: /opt/docker/paperless/db, service: 'paperless' }
+    - { path: /opt/docker/paperless/consume, service: 'paperless' }
     - { path: /mnt/HDD-01/paperless/media, service: 'paperless' }
-    - { path: /opt/containerd/ollama/data, service: 'ollama' }
+    - { path: /opt/docker/ollama/data, service: 'ollama' }
   when: "item.service in (docker_apps_services | default([]))"
 
 - name: Deploy Prometheus configuration
   become: true
   ansible.builtin.template:
     src: prometheus.yml.j2
-    dest: /opt/containerd/prometheus/config/prometheus.yml
+    dest: /opt/docker/prometheus/config/prometheus.yml
     mode: '0644'
     owner: root
     group: root
@@ -72,7 +72,7 @@
   become: true
   ansible.builtin.template:
     src: docker-compose.yml.j2
-    dest: "/opt/containerd/{{ item }}/docker-compose.yml"
+    dest: "/opt/docker/{{ item }}/docker-compose.yml"
     mode: '0644'
     owner: root
     group: root
@@ -84,7 +84,7 @@
   become: true
   ansible.builtin.template:
     src: "{{ item }}.env.j2"
-    dest: "/opt/containerd/{{ item }}/.env"
+    dest: "/opt/docker/{{ item }}/.env"
     mode: '0600'
     owner: root
     group: root
@@ -98,7 +98,7 @@
   become: true
   ansible.builtin.template:
     src: caddy_Dockerfile.j2
-    dest: /opt/containerd/caddy/Dockerfile
+    dest: /opt/docker/caddy/Dockerfile
     mode: '0644'
     owner: root
     group: root
@@ -108,7 +108,7 @@
   become: true
   ansible.builtin.template:
     src: Caddyfile.j2
-    dest: /opt/containerd/caddy/Caddyfile
+    dest: /opt/docker/caddy/Caddyfile
     mode: '0644'
     owner: root
     group: root
@@ -133,7 +133,7 @@
 - name: Start Semaphore safely (only if stopped)
   become: true
   community.docker.docker_compose_v2:
-    project_src: "/opt/containerd/semaphore/"
+    project_src: "/opt/docker/semaphore/"
     state: present
     wait: true
   when: >
@@ -145,7 +145,7 @@
 - name: Restart Docker Compose Stacks
   become: true
   community.docker.docker_compose_v2:
-    project_src: "/opt/containerd/{{ item }}/"
+    project_src: "/opt/docker/{{ item }}/"
     state: present
     wait: true
   loop: "{{ docker_apps_services | default([]) }}"

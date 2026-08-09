@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${SEMAPHORE_DB_PASS}
       POSTGRES_DB: ${SEMAPHORE_DB_NAME:-semaphore}
     volumes:
-      - /opt/containerd/semaphore/db:/var/lib/postgresql/data
+      - /opt/docker/semaphore/db:/var/lib/postgresql/data
     restart: unless-stopped
 
   semaphore:
@@ -31,7 +31,7 @@ services:
     depends_on:
       - semaphore-db
     volumes:
-      - /opt/containerd/semaphore/playbooks:/home/semaphore/playbooks
+      - /opt/docker/semaphore/playbooks:/home/semaphore/playbooks
     restart: unless-stopped
 {% endif %}
 
@@ -42,8 +42,8 @@ services:
     ports:
       - "19090:9090"
     volumes:
-      - /opt/containerd/prometheus/config:/etc/prometheus
-      - /opt/containerd/prometheus/data:/prometheus
+      - /opt/docker/prometheus/config:/etc/prometheus
+      - /opt/docker/prometheus/data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -72,7 +72,7 @@ services:
     ports:
       - "13001:3000"
     volumes:
-      - /opt/containerd/grafana/data:/var/lib/grafana
+      - /opt/docker/grafana/data:/var/lib/grafana
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASS}
     restart: unless-stopped
@@ -83,7 +83,7 @@ services:
     container_name: homeassistant
     image: "ghcr.io/home-assistant/home-assistant:stable"
     volumes:
-      - /opt/containerd/homeassistant/config:/config
+      - /opt/docker/homeassistant/config:/config
       - /etc/localtime:/etc/localtime:ro
       - /run/dbus:/run/dbus:ro
     restart: unless-stopped
@@ -100,7 +100,7 @@ services:
     security_opt:
       - apparmor=unconfined
     volumes:
-      - /opt/containerd/homeassistant/matter:/data
+      - /opt/docker/homeassistant/matter:/data
       - /run/dbus:/run/dbus:ro
     network_mode: host
 {% endif %}
@@ -108,7 +108,7 @@ services:
 {% if current_service == 'caddy' %}
   caddy:
     build:
-      context: /opt/containerd/caddy
+      context: /opt/docker/caddy
       dockerfile: Dockerfile
     container_name: caddy
     restart: unless-stopped
@@ -116,9 +116,9 @@ services:
     env_file:
       - .env
     volumes:
-      - /opt/containerd/caddy/Caddyfile:/etc/caddy/Caddyfile
-      - /opt/containerd/caddy/data:/data
-      - /opt/containerd/caddy/config:/config
+      - /opt/docker/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - /opt/docker/caddy/data:/data
+      - /opt/docker/caddy/config:/config
       - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
     environment:
       - TZ=Europe/Berlin
@@ -135,8 +135,8 @@ services:
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
     volumes:
-      - /opt/containerd/openclaw/data:/home/node/.openclaw
-      - /opt/containerd/openclaw/workspace:/home/node/openclaw/workspace
+      - /opt/docker/openclaw/data:/home/node/.openclaw
+      - /opt/docker/openclaw/workspace:/home/node/openclaw/workspace
 {% endif %}
 
 {% if current_service == 'vaultwarden' %}
@@ -149,7 +149,7 @@ services:
     environment:
       - SIGNUPS_ALLOWED=false
     volumes:
-      - /opt/containerd/vaultwarden/data:/data
+      - /opt/docker/vaultwarden/data:/data
 {% endif %}
 
 {% if current_service == 'immich' %}
@@ -175,7 +175,7 @@ services:
     container_name: immich_machine_learning
     image: ghcr.io/immich-app/immich-machine-learning:release
     volumes:
-      - /opt/containerd/immich/model-cache:/cache
+      - /opt/docker/immich/model-cache:/cache
     environment:
       - TZ=Europe/Vienna
     deploy:
@@ -234,8 +234,8 @@ services:
       - "3002:3000/tcp"
       - "8081:80/tcp"
     volumes:
-      - /opt/containerd/adguard/work:/opt/adguardhome/work
-      - /opt/containerd/adguard/conf:/opt/adguardhome/conf
+      - /opt/docker/adguard/work:/opt/adguardhome/work
+      - /opt/docker/adguard/conf:/opt/adguardhome/conf
 {% endif %}
 
 {% if current_service == 'paperless' %}
@@ -244,14 +244,14 @@ services:
     container_name: paperless_redis
     restart: unless-stopped
     volumes:
-      - /opt/containerd/paperless/redis:/data
+      - /opt/docker/paperless/redis:/data
 
   paperless-db:
     image: docker.io/library/postgres:15
     container_name: paperless_db
     restart: unless-stopped
     volumes:
-      - /opt/containerd/paperless/db:/var/lib/postgresql/data
+      - /opt/docker/paperless/db:/var/lib/postgresql/data
     environment:
       POSTGRES_DB: paperless
       POSTGRES_USER: paperless
@@ -272,11 +272,11 @@ services:
       timeout: 10s
       retries: 5
     volumes:
-      - /opt/containerd/paperless/data:/usr/src/paperless/data
+      - /opt/docker/paperless/data:/usr/src/paperless/data
       - /mnt/HDD-01/paperless/media:/usr/src/paperless/media
-      - /opt/containerd/paperless/export:/usr/src/paperless/export
-      - /opt/containerd/paperless/consume:/usr/src/paperless/consume
-      - /opt/containerd/paperless/tmp:/tmp/paperless
+      - /opt/docker/paperless/export:/usr/src/paperless/export
+      - /opt/docker/paperless/consume:/usr/src/paperless/consume
+      - /opt/docker/paperless/tmp:/tmp/paperless
     env_file:
       - .env
     environment:
@@ -290,13 +290,13 @@ services:
 
 {% if current_service == 'ollama' %}
   ollama:
-    image: docker.io/ollama/ollama:latest
+    image: docker.io/ollama/ollama:0.2.8
     container_name: ollama
     restart: unless-stopped
     ports:
       - "11434:11434"
     volumes:
-      - /opt/containerd/ollama/data:/root/.ollama
+      - /opt/docker/ollama/data:/root/.ollama
     deploy:
       resources:
         reservations:

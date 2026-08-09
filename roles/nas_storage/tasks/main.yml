@@ -9,10 +9,10 @@
     - /mnt/HDD-01/backups
     - /mnt/HDD-01/immich
     - /mnt/HDD-01/immich/.snapshots
-    - /opt/containerd/immich
+    - /opt/docker/immich
     - /.snapshots
     - /home/.snapshots
-    - /opt/containerd/immich/.snapshots
+    - /opt/docker/immich/.snapshots
     - /lib/immich
 
 # SSD Mounts (assuming the base installation mounted / and created rootfs)
@@ -24,10 +24,10 @@
     opts: "subvol={{ item.subvol }},compress=zstd,ssd"
     state: mounted
   loop:
-    - { path: '/opt/containerd/immich', subvol: '@immich' }
+    - { path: '/opt/docker/immich', subvol: '@immich' }
     - { path: '/.snapshots', subvol: '@snapshots' }
     - { path: '/home/.snapshots', subvol: '@home_snapshots' }
-    - { path: '/opt/containerd/immich/.snapshots', subvol: '@immich_snapshots' }
+    - { path: '/opt/docker/immich/.snapshots', subvol: '@immich_snapshots' }
 
 # HDD Mounts & Creation
 - name: Mount HDD root
@@ -68,7 +68,7 @@
 - name: Mount MergerFS for Immich
   ansible.posix.mount:
     path: /lib/immich
-    src: /opt/containerd/immich/data:/mnt/HDD-01/immich
+    src: /opt/docker/immich/data:/mnt/HDD-01/immich
     fstype: mergerfs
     opts: defaults,allow_other,cache.files=off,use_ino,category.create=ff,minfreespace=20G,fsname=mergerfs_immich
     state: mounted

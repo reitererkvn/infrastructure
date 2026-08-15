@@ -1,0 +1,6 @@
+---
+- name: Desktop Infrastructure
+  hosts: desktops
+  become: yes
+  roles:
+    - { role: desktop_base, tags: ['base', 'desktop'] }

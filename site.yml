@@ -1,15 +1,3 @@
 ---
-- name: NAS Infrastructure
-  hosts: nas
-  become: yes
-  roles:
-    - { role: nas_base, tags: ['base', 'nas'] }
-    - { role: nas_storage, tags: ['storage', 'nas'] }
-    - { role: nas_backups, tags: ['backups', 'nas'] }
-    - { role: nas_docker, tags: ['docker', 'nas'] }
-
-- name: Desktop Infrastructure
-  hosts: desktops
-  become: yes
-  roles:
-    - { role: desktop_base, tags: ['base', 'desktop'] }
+- import_playbook: nas.yml
+- import_playbook: desktop.yml

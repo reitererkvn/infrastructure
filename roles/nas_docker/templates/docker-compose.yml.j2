@@ -16,6 +16,7 @@ services:
     container_name: semaphore
     networks:
       - proxy_net
+      - default
     environment:
       SEMAPHORE_DB_USER: ${SEMAPHORE_DB_USER:-semaphore}
       SEMAPHORE_DB_PASS: ${SEMAPHORE_DB_PASS}
@@ -42,6 +43,7 @@ services:
     container_name: prometheus
     networks:
       - proxy_net
+      - default
     volumes:
       - /opt/docker/prometheus/config:/etc/prometheus
       - /opt/docker/prometheus/data:/prometheus
@@ -169,6 +171,7 @@ services:
       - .env
     networks:
       - proxy_net
+      - default
     depends_on:
       - redis
       - database
@@ -271,6 +274,7 @@ services:
     restart: unless-stopped
     networks:
       - proxy_net
+      - default
     depends_on:
       - paperless-db
       - paperless-broker

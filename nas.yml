@@ -1,0 +1,9 @@
+---
+- name: NAS Infrastructure
+  hosts: nas
+  become: yes
+  roles:
+    - { role: nas_base, tags: ['base', 'nas'] }
+    - { role: nas_storage, tags: ['storage', 'nas'] }
+    - { role: nas_backups, tags: ['backups', 'nas'] }
+    - { role: nas_docker, tags: ['docker', 'nas'] }

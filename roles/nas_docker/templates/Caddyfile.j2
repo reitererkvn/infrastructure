@@ -46,10 +46,10 @@ vault.rnet.at {
     reverse_proxy vaultwarden:80
 }
 
-# AdGuard Home (Public Access cia IWNX Domain)
-adguard.rnet.at {
+# AdGuard Home (Internal Access via Tailscale)
+nas-01.taildfad90.ts.net:3002 {
     tls {
-        dns cloudflare {$CLOUDFLARE_API_TOKEN}
+        get_certificate tailscale
     }
     reverse_proxy adguard:80
 }

@@ -14,8 +14,8 @@ services:
   semaphore:
     image: semaphoreui/semaphore:latest
     container_name: semaphore
-    ports:
-      - "13000:3000"
+    networks:
+      - proxy_net
     environment:
       SEMAPHORE_DB_USER: ${SEMAPHORE_DB_USER:-semaphore}
       SEMAPHORE_DB_PASS: ${SEMAPHORE_DB_PASS}
@@ -40,8 +40,8 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
-    ports:
-      - "19090:9090"
+    networks:
+      - proxy_net
     volumes:
       - /opt/docker/prometheus/config:/etc/prometheus
       - /opt/docker/prometheus/data:/prometheus
@@ -70,8 +70,8 @@ services:
   grafana:
     image: grafana/grafana-oss:latest
     container_name: grafana
-    ports:
-      - "13001:3000"
+    networks:
+      - proxy_net
     volumes:
       - /opt/docker/grafana/data:/var/lib/grafana
     environment:
@@ -113,7 +113,11 @@ services:
       dockerfile: Dockerfile
     container_name: caddy
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - proxy_net
     env_file:
       - .env
     volumes:
@@ -131,8 +135,8 @@ services:
     container_name: openclaw
     restart: unless-stopped
     command: node openclaw.mjs gateway --allow-unconfigured
-    ports:
-      - "8001:8000"
+    networks:
+      - proxy_net
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
     volumes:
@@ -145,8 +149,8 @@ services:
     image: vaultwarden/server:latest
     container_name: vaultwarden
     restart: unless-stopped
-    ports:
-      - "8000:80"
+    networks:
+      - proxy_net
     environment:
       - SIGNUPS_ALLOWED=false
     volumes:
@@ -163,8 +167,8 @@ services:
       - /etc/localtime:/etc/localtime:ro
     env_file:
       - .env
-    ports:
-      - '2285:2283'
+    networks:
+      - proxy_net
     depends_on:
       - redis
       - database
@@ -174,7 +178,7 @@ services:
 
   immich-machine-learning:
     container_name: immich_machine_learning
-    image: ghcr.io/immich-app/immich-machine-learning:release
+    image: ghcr.io/immich-app/immich-machine-learning:release-cuda
     volumes:
       - /opt/docker/immich/model-cache:/cache
     environment:
@@ -221,7 +225,8 @@ services:
       - TUNNEL_TRANSPORT_PROTOCOL=http2
     env_file:
       - .env
-    network_mode: host
+    networks:
+      - proxy_net
 {% endif %}
 
 {% if current_service == 'adguard' %}
@@ -229,6 +234,8 @@ services:
     image: adguard/adguardhome
     container_name: adguard
     restart: unless-stopped
+    networks:
+      - proxy_net
     ports:
       - "53:53/tcp"
       - "53:53/udp"
@@ -262,11 +269,11 @@ services:
     image: ghcr.io/paperless-ngx/paperless-ngx:latest
     container_name: paperless_webserver
     restart: unless-stopped
+    networks:
+      - proxy_net
     depends_on:
       - paperless-db
       - paperless-broker
-    ports:
-      - "8002:8000"
     healthcheck:
       test: ["CMD", "curl", "-fs", "-S", "--max-time", "2", "http://localhost:8000"]
       interval: 30s
@@ -309,3 +316,7 @@ services:
               count: 1
               capabilities: [gpu, video, compute, utility]
 {% endif %}
+
+networks:
+  proxy_net:
+    external: true

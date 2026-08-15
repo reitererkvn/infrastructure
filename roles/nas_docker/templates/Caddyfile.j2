@@ -3,7 +3,7 @@ nas-01.taildfad90.ts.net:3000 {
     tls {
         get_certificate tailscale
     }
-    reverse_proxy 127.0.0.1:13000
+    reverse_proxy semaphore:3000
 }
 
 # Grafana (Monitoring Dashboards)
@@ -11,7 +11,7 @@ nas-01.taildfad90.ts.net:3001 {
     tls {
         get_certificate tailscale
     }
-    reverse_proxy 127.0.0.1:13001
+    reverse_proxy grafana:3000
 }
 
 # Prometheus (Metrics)
@@ -19,7 +19,7 @@ nas-01.taildfad90.ts.net:9090 {
     tls {
         get_certificate tailscale
     }
-    reverse_proxy 127.0.0.1:19090
+    reverse_proxy prometheus:9090
 }
 
 # Home Assistant (Public Access via INWX Domain)
@@ -27,7 +27,7 @@ ha.rnet.at {
     tls {
         dns cloudflare {$CLOUDFLARE_API_TOKEN}
     }
-    reverse_proxy 127.0.0.1:8122
+    reverse_proxy 192.168.178.46:8122
 }
 
 # Immich (Public Access via INWX Domain)
@@ -35,7 +35,7 @@ immich.rnet.at {
     tls {
         dns cloudflare {$CLOUDFLARE_API_TOKEN}
     }
-    reverse_proxy 127.0.0.1:2285
+    reverse_proxy immich_server:2283
 }
 
 # Vaultwarden (Public Access via INWX Domain)
@@ -43,7 +43,7 @@ vault.rnet.at {
     tls {
         dns cloudflare {$CLOUDFLARE_API_TOKEN}
     }
-    reverse_proxy 127.0.0.1:8000
+    reverse_proxy vaultwarden:80
 }
 
 # AdGuard Home (Public Access cia IWNX Domain)
@@ -51,7 +51,7 @@ adguard.rnet.at {
     tls {
         dns cloudflare {$CLOUDFLARE_API_TOKEN}
     }
-    reverse_proxy 127.0.0.1:8081
+    reverse_proxy adguard:80
 }
 
 # Paperless-ngx (Public Access via INWX Domain)
@@ -59,5 +59,5 @@ docs.rnet.at {
     tls {
         dns cloudflare {$CLOUDFLARE_API_TOKEN}
     }
-    reverse_proxy 127.0.0.1:8002
+    reverse_proxy paperless_webserver:8000
 }

@@ -23,6 +23,14 @@
     - net.ipv6.conf.eth0.accept_ra_rt_info_max_plen
   when: "'homeassistant' in (docker_apps_services | default([]))"
 
+- name: Ensure proxy_net network exists
+  become: true
+  community.docker.docker_network:
+    name: proxy_net
+    state: present
+    driver: bridge
+  tags: [ docker_apps ]
+
 - name: Ensure service directories exist
   become: true
   ansible.builtin.file:

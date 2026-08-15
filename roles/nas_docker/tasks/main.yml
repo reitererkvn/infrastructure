@@ -79,7 +79,7 @@
 - name: Deploy Docker Compose files
   become: true
   ansible.builtin.template:
-    src: docker-compose.yml.j2
+    src: "compose/{{ item }}.yml.j2"
     dest: "/opt/docker/{{ item }}/docker-compose.yml"
     mode: '0644'
     owner: root

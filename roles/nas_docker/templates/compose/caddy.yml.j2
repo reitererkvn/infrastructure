@@ -1,0 +1,25 @@
+services:
+caddy:
+    build:
+      context: /opt/docker/caddy
+      dockerfile: Dockerfile
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - proxy_net
+    env_file:
+      - .env
+    volumes:
+      - /opt/docker/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - /opt/docker/caddy/data:/data
+      - /opt/docker/caddy/config:/config
+      - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+    environment:
+      - TZ=Europe/Berlin
+
+networks:
+  proxy_net:
+    external: true

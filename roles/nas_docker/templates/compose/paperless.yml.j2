@@ -1,0 +1,53 @@
+services:
+paperless-broker:
+    image: docker.io/library/redis:7
+    container_name: paperless_redis
+    restart: unless-stopped
+    volumes:
+      - /opt/docker/paperless/redis:/data
+
+  paperless-db:
+    image: docker.io/library/postgres:15
+    container_name: paperless_db
+    restart: unless-stopped
+    volumes:
+      - /opt/docker/paperless/db:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${PAPERLESS_DB_PASS}
+
+  paperless-webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless_webserver
+    restart: unless-stopped
+    networks:
+      - proxy_net
+      - default
+    depends_on:
+      - paperless-db
+      - paperless-broker
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-S", "--max-time", "2", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - /opt/docker/paperless/data:/usr/src/paperless/data
+      - /mnt/HDD-01/paperless/media:/usr/src/paperless/media
+      - /opt/docker/paperless/export:/usr/src/paperless/export
+      - /opt/docker/paperless/consume:/usr/src/paperless/consume
+      - /opt/docker/paperless/tmp:/tmp/paperless
+    env_file:
+      - .env
+    environment:
+      PAPERLESS_REDIS: redis://paperless-broker:6379
+      PAPERLESS_DBHOST: paperless-db
+      PAPERLESS_DBPASS: ${PAPERLESS_DB_PASS}
+      PAPERLESS_URL: https://docs.rnet.at
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
+      PAPERLESS_EMAIL_CHARSET: US-ASCII
+
+networks:
+  proxy_net:
+    external: true

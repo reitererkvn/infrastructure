@@ -1,0 +1,15 @@
+services:
+vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    networks:
+      - proxy_net
+    environment:
+      - SIGNUPS_ALLOWED=false
+    volumes:
+      - /opt/docker/vaultwarden/data:/data
+
+networks:
+  proxy_net:
+    external: true

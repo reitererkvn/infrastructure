@@ -1,0 +1,15 @@
+services:
+grafana:
+    image: grafana/grafana-oss:latest
+    container_name: grafana
+    networks:
+      - proxy_net
+    volumes:
+      - /opt/docker/grafana/data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASS}
+    restart: unless-stopped
+
+networks:
+  proxy_net:
+    external: true

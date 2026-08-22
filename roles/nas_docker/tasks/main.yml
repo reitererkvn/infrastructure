@@ -98,8 +98,9 @@
     group: root
   loop:
     - paperless
-    # - immich
-    # - grafana
+    - immich
+    - grafana
+    - caddy
   when: "item in (docker_apps_services | default([]))"
 
 - name: Deploy Caddy Dockerfile

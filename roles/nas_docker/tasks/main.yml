@@ -8,7 +8,6 @@
     owner: root
     group: root
     recurse: false
-
 - name: Enable IPv6 Route Information Option (RIO) for Matter/Thread Border Routers
   become: true
   ansible.posix.sysctl:
@@ -22,7 +21,6 @@
     - net.ipv6.conf.default.accept_ra_rt_info_max_plen
     - net.ipv6.conf.eth0.accept_ra_rt_info_max_plen
   when: "'homeassistant' in (docker_apps_services | default([]))"
-
 - name: Ensure proxy_net network exists
   become: true
   community.docker.docker_network:
@@ -30,7 +28,6 @@
     state: present
     driver: bridge
   tags: [ docker_apps ]
-
 - name: Ensure service directories exist
   become: true
   ansible.builtin.file:
@@ -65,7 +62,6 @@
     - { path: /mnt/HDD-01/paperless/media, service: 'paperless' }
     - { path: /opt/docker/ollama/data, service: 'ollama' }
   when: "item.service in (docker_apps_services | default([]))"
-
 - name: Deploy Prometheus configuration
   become: true
   ansible.builtin.template:
@@ -75,7 +71,6 @@
     owner: root
     group: root
   when: "'prometheus' in (docker_apps_services | default([]))"
-
 - name: Deploy Docker Compose files
   become: true
   ansible.builtin.template:
@@ -87,7 +82,6 @@
   loop: "{{ docker_apps_services | default([]) }}"
   vars:
     current_service: "{{ item }}"
-
 - name: Deploy Environment variables (.env)
   become: true
   ansible.builtin.template:
@@ -101,8 +95,11 @@
     - immich
     - grafana
     - caddy
+    - cloudflared
+    - openclaw
+    - semaphore
+    - vaultwarden
   when: "item in (docker_apps_services | default([]))"
-
 - name: Deploy Caddy Dockerfile
   become: true
   ansible.builtin.template:
@@ -112,7 +109,6 @@
     owner: root
     group: root
   when: "'caddy' in (docker_apps_services | default([]))"
-
 - name: Deploy Caddyfile configuration
   become: true
   ansible.builtin.template:
@@ -123,14 +119,12 @@
     group: root
   register: caddyfile_status
   when: "'caddy' in (docker_apps_services | default([]))"
-
 - name: Reload Caddy to apply changes
   become: true
   ansible.builtin.command:
     cmd: docker exec caddy caddy reload --config /etc/caddy/Caddyfile
   when: "'caddy' in (docker_apps_services | default([])) and caddyfile_status.changed"
   ignore_errors: true
-
 - name: Check Semaphore container status
   become: true
   ansible.builtin.command: docker ps -q -f name=semaphore
@@ -138,24 +132,24 @@
   changed_when: false
   when: "'semaphore' in (docker_apps_services | default([]))"
   tags: [ docker_apps ]
-
 - name: Start Semaphore safely
   become: true
   community.docker.docker_compose_v2:
     project_src: "/opt/docker/semaphore/"
     state: present
+    pull: always
     wait: true
   when: >
     'semaphore' in (docker_apps_services | default([]))
     and semaphore_running.stdout | default('') == ''
     and 'infrastructure_only' not in ansible_run_tags
   tags: [ docker_apps ]
-
 - name: Restart Docker Compose Stacks
   become: true
   community.docker.docker_compose_v2:
     project_src: "/opt/docker/{{ item }}/"
     state: present
+    pull: always
     wait: true
   loop: "{{ docker_apps_services | default([]) }}"
   vars:

@@ -43,6 +43,21 @@
     owner: root
     group: root
 
+- name: Configure systemd-networkd to ignore Docker veth interfaces
+  ansible.builtin.copy:
+    dest: /etc/systemd/network/wired.network
+    content: |
+      [Match]
+      Name=en*
+      Type=ether
+      
+      [Network]
+      DHCP=yes
+    mode: '0644'
+    owner: root
+    group: root
+  notify: Restart systemd-networkd
+
 - name: Install Docker and Docker Compose
   ansible.builtin.apt:
     name:

@@ -5,8 +5,8 @@ services:
     restart: unless-stopped
     networks:
       - proxy_net
-    environment:
-      - SIGNUPS_ALLOWED=false
+    env_file:
+      - .env
     volumes:
       - /opt/docker/vaultwarden/data:/data
 

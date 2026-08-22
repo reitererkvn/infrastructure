@@ -6,3 +6,8 @@
   ansible.builtin.systemd:
     name: docker
     state: restarted
+
+- name: Restart systemd-networkd
+  ansible.builtin.systemd:
+    name: systemd-networkd
+    state: restarted

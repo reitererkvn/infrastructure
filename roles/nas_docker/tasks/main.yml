@@ -19,7 +19,7 @@
   loop:
     - net.ipv6.conf.all.accept_ra_rt_info_max_plen
     - net.ipv6.conf.default.accept_ra_rt_info_max_plen
-    - net.ipv6.conf.eth0.accept_ra_rt_info_max_plen
+    - "net.ipv6.conf.{{ ansible_default_ipv4.interface }}.accept_ra_rt_info_max_plen"
   when: "'homeassistant' in (docker_apps_services | default([]))"
 - name: Ensure proxy_net network exists
   become: true

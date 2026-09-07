@@ -20,6 +20,13 @@ services:
   paperless-webserver:
     image: ghcr.io/paperless-ngx/paperless-ngx:latest
     container_name: paperless_webserver
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu, video, compute, utility]
     restart: unless-stopped
     networks:
       - proxy_net

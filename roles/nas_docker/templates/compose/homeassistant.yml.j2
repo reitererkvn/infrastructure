@@ -1,6 +1,13 @@
 services:
   homeassistant:
     container_name: homeassistant
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu, video, compute, utility]
     image: "ghcr.io/home-assistant/home-assistant:stable"
     volumes:
       - /opt/docker/homeassistant/config:/config

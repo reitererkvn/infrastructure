@@ -1,4 +1,16 @@
 ---
+- name: Ensure restic config directory exists
+  ansible.builtin.file:
+    path: /root/.config/restic
+    state: directory
+    mode: '0700'
+
+- name: Deploy restic password from vault
+  ansible.builtin.copy:
+    content: "{{ restic_password }}"
+    dest: /root/.config/restic/password
+    mode: '0600'
+
 - name: Deploy Backup Scripts
   ansible.builtin.template:
     src: "scripts/{{ item }}.j2"

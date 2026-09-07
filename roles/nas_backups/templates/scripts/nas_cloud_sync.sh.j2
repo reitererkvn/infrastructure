@@ -28,29 +28,12 @@ fi
 
 echo "[+] Starte Cloud-Backup (Restic) für: $MODE"
 
-# --- Secret Acquisition (Unified /run/vault Path) ---
-RESTIC_PASS="/run/vault/restic_pass"
-SESSION_FILE="/run/vault/bw_session"
+# --- Secret Acquisition (Managed by Ansible Vault) ---
+RESTIC_PASS="/root/.config/restic/password"
+export RCLONE_CONFIG="/root/.config/rclone/rclone.conf"
 
-if [[ -f "$SESSION_FILE" ]]; then
-    export BW_SESSION=$(cat "$SESSION_FILE")
-    # Retrieve password from vault if not already in RAM-disk
-    if [[ ! -s "$RESTIC_PASS" ]]; then
-        bw get password "Restic-Backup-Key" > "$RESTIC_PASS"
-        chmod 600 "$RESTIC_PASS"
-    fi
-    
-    # Retrieve rclone configuration from vault (Method 1: Ephemeral RAM-Disk)
-    RCLONE_CONF_FILE="/run/vault/rclone.conf"
-    if [[ ! -s "$RCLONE_CONF_FILE" ]]; then
-        echo "[+] Lade Rclone-Konfiguration aus dem Bitwarden-Tresor..."
-        bw get notes "Rclone-Config" > "$RCLONE_CONF_FILE"
-        chmod 600 "$RCLONE_CONF_FILE"
-    fi
-    # Set environment variable so rclone uses the RAM-disk config automatically
-    export RCLONE_CONFIG="$RCLONE_CONF_FILE"
-else
-    echo "[FEHLER] Tresor ist gesperrt. Bitte 'vault-unlock.sh' ausführen!"
+if [[ ! -s "$RESTIC_PASS" ]]; then
+    echo "[FEHLER] Restic Passwort nicht gefunden in $RESTIC_PASS!"
     exit 1
 fi
 

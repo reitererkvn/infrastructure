@@ -23,16 +23,25 @@ echo "========================================"
 echo " SYSTEM UPDATE INITIATED"
 echo "========================================"
 
-# Schritt 2: System-Kern (Pacman)
-echo ">>> [1/3] Aktualisiere Keyrings"
-paru -Sy archlinux-keyring cachyos-keyring
+# Schritt 1: System-Update
+echo ">>> [1/2] System-Update wird ausgeführt..."
+if ! paru -Syu; then
+    echo ">>> [!] Update fehlgeschlagen. Versuche Keyrings zu aktualisieren und wiederhole..."
+    # pacman statt paru verwenden, um GPG-Probleme direkter zu beheben
+    if sudo pacman -Sy --noconfirm archlinux-keyring cachyos-keyring; then
+        echo ">>> Keyrings erfolgreich aktualisiert. Zweiter Update-Versuch..."
+        if ! paru -Su; then
+            echo ">>> [X] Zweiter Versuch ebenfalls fehlgeschlagen. Abbruch."
+            exit 1
+        fi
+    else
+        echo ">>> [X] Keyring-Update fehlgeschlagen. Abbruch."
+        exit 1
+    fi
+fi
 
-# Schritt 2: System-Kern (Pacman)
-echo ">>> [2/3] Aktualisiere Repositories ..."
-paru -Syu
-
-# Schritt 4: Speichermanagement (Verbose Analyse & Ausführung)
-echo ">>> [3/3] System-Diagnose für Speichermanagement..."
+# Schritt 2: Speichermanagement (Verbose Analyse & Ausführung)
+echo ">>> [2/2] System-Diagnose für Speichermanagement..."
 
 if [[ $CLEANUP_MODE -eq 1 ]]; then
     echo ">>> Override-Signal (-c) detektiert. Überspringe Diagnose."

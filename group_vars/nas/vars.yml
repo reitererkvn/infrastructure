@@ -5,7 +5,6 @@ docker_apps_services:
   - grafana
   - homeassistant
   - caddy
-  - openclaw
   - vaultwarden
   - immich
   - cloudflared

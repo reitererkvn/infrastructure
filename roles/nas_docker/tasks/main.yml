@@ -48,8 +48,6 @@
     - { path: /opt/docker/caddy, service: 'caddy' }
     - { path: /opt/docker/caddy/data, service: 'caddy' }
     - { path: /opt/docker/caddy/config, service: 'caddy' }
-    - { path: /opt/docker/openclaw/data, owner: '1000', group: '1000', recurse: true, service: 'openclaw' }
-    - { path: /opt/docker/openclaw/workspace, owner: '1000', group: '1000', recurse: true, service: 'openclaw' }
     - { path: /opt/docker/vaultwarden/data, service: 'vaultwarden' }
     - { path: /opt/docker/immich, group: "root", service: 'immich' }
     - { path: /opt/docker/immich/model-cache, group: "root", service: 'immich' }
@@ -96,7 +94,6 @@
     - grafana
     - caddy
     - cloudflared
-    - openclaw
     - semaphore
     - vaultwarden
   when: "item in (docker_apps_services | default([]))"

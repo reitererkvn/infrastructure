@@ -81,3 +81,33 @@
     - snapshot-backup.timer
     - system-update.timer
     - backup-on-shutdown.service
+
+- name: Ensure root rclone config directory exists
+  ansible.builtin.file:
+    path: /root/.config/rclone
+    state: directory
+    mode: '0700'
+
+- name: Deploy root rclone config from vault
+  ansible.builtin.template:
+    src: rclone.conf.j2
+    dest: /root/.config/rclone/rclone.conf
+    mode: '0600'
+    owner: root
+    group: root
+
+- name: Ensure kevin rclone config directory exists
+  ansible.builtin.file:
+    path: /home/kevin/.config/rclone
+    state: directory
+    mode: '0700'
+    owner: kevin
+    group: kevin
+
+- name: Deploy kevin rclone config from vault
+  ansible.builtin.template:
+    src: rclone.conf.j2
+    dest: /home/kevin/.config/rclone/rclone.conf
+    mode: '0600'
+    owner: kevin
+    group: kevin

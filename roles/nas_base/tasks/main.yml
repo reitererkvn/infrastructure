@@ -108,3 +108,15 @@
   register: nvidia_ctk_result
   changed_when: "'Configured' in nvidia_ctk_result.stdout"
   notify: Restart Docker
+
+- name: Ensure rclone config directory exists
+  ansible.builtin.file:
+    path: /root/.config/rclone
+    state: directory
+    mode: '0700'
+
+- name: Deploy rclone config from vault
+  ansible.builtin.template:
+    src: rclone.conf.j2
+    dest: /root/.config/rclone/rclone.conf
+    mode: '0600'

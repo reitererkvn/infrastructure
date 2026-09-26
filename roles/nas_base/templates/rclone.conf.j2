@@ -1,0 +1,26 @@
+[gdrive]
+type = drive
+scope = drive
+team_drive = 
+client_id = {{ rclone_gdrive_client_id }}
+client_secret = {{ rclone_gdrive_client_secret }}
+service_account_file = 
+token = {{ rclone_gdrive_token }}
+drive_id = {{ rclone_gdrive_drive_id | default('8EA97A962F6A5137') }}
+drive_type = personal
+
+[onedrive]
+type = onedrive
+token = {{ rclone_onedrive_token }}
+drive_id = {{ rclone_onedrive_drive_id | default('8EA97A962F6A5137') }}
+drive_type = personal
+
+[nas-01]
+type = sftp
+host = 100.72.31.15
+user = kevin
+key_file = /home/kevin/.ssh/id_ed25519
+use_agent = false
+shell_type = unix
+md5sum_command = md5sum
+sha1sum_command = sha1sum

@@ -40,8 +40,32 @@ if ! paru -Syu; then
     fi
 fi
 
-# Schritt 2: Speichermanagement (Verbose Analyse & Ausführung)
-echo ">>> [2/2] System-Diagnose für Speichermanagement..."
+# Schritt 2: Verwaiste Pakete (Orphans)
+echo ">>> [2/3] Suche nach verwaisten Paketen (Orphans)..."
+ORPHANS=$(pacman -Qtdq)
+if [ -n "$ORPHANS" ]; then
+    echo "    -> Folgende verwaiste Pakete wurden gefunden:"
+    echo "$ORPHANS" | sed 's/^/       - /'
+    echo ""
+    if [[ $CLEANUP_MODE -eq 1 ]]; then
+        echo ">>> Override-Signal (-c) detektiert. Entferne verwaiste Pakete automatisch..."
+        sudo pacman -Rns $ORPHANS --noconfirm
+    else
+        read -r -p "Sollen diese verwaisten Pakete jetzt deinstalliert werden? (j/N): " orphan_choice
+        if [[ "$orphan_choice" =~ ^[jJ]$ ]]; then
+            sudo pacman -Rns $ORPHANS --noconfirm
+            echo "    -> Verwaiste Pakete erfolgreich entfernt."
+        else
+            echo "    -> Übersprungen."
+        fi
+    fi
+else
+    echo "    -> Keine verwaisten Pakete gefunden."
+fi
+echo ""
+
+# Schritt 3: Speichermanagement (Verbose Analyse & Ausführung)
+echo ">>> [3/3] System-Diagnose für Speichermanagement..."
 
 if [[ $CLEANUP_MODE -eq 1 ]]; then
     echo ">>> Override-Signal (-c) detektiert. Überspringe Diagnose."

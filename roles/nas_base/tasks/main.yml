@@ -90,10 +90,13 @@
     mode: '0644'
 
 - name: Add NVIDIA Container Toolkit repository
-  ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.asc] https://nvidia.github.io/libnvidia-container/stable/deb/amd64 /"
+  ansible.builtin.deb822_repository:
+    name: nvidia-container-toolkit
+    types: [deb]
+    uris: "https://nvidia.github.io/libnvidia-container/stable/deb/amd64"
+    suites: ["/"]
+    signed_by: /usr/share/keyrings/nvidia-container-toolkit-keyring.asc
     state: present
-    filename: nvidia-container-toolkit
 
 - name: Install NVIDIA and CUDA dependencies
   ansible.builtin.apt:

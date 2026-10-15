@@ -29,7 +29,7 @@ The infrastructure is orchestrated from a single master playbook (`site.yml`) ma
 *   **`nas_storage`**: Automates BTRFS subvolume creation, MergerFS pooling, and configures Snapper for automated snapshots.
 *   **`nas_base`**: Bootstraps the core OS, configures DNS (`resolv.conf`), package managers, and deploys a cross-platform Zsh environment.
 *   **`nas_backups`**: Deploys multi-tiered backup strategies. Orchestrates local snapshots, cloud synchronization via Restic/Rclone, and configures dynamic hardware-level scripts (e.g., intelligent HDD spindown logic via `hdparm`).
-*   **`nas_docker`**: Deploys the self-hosted application stack (Paperless, Home Assistant, Prometheus, Grafana, Immich). Dynamically templates `docker-compose.yml` files and securely injects credentials at runtime.
+*   **`nas_docker`**: Deploys the self-hosted application stack (Paperless-ngx, Ollama, Home Assistant, Prometheus, Grafana, Immich, Vaultwarden, AdGuard, Caddy). Dynamically templates `docker-compose.yml` files and securely injects credentials at runtime.
 
 ### Desktop Infrastructure (`desktops`)
 

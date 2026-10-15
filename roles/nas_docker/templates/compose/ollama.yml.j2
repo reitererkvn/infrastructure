@@ -3,6 +3,8 @@ services:
     image: docker.io/ollama/ollama:0.2.8
     container_name: ollama
     restart: unless-stopped
+    networks:
+      - proxy_net
     ports:
       - "11434:11434"
     volumes:

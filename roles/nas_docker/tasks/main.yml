@@ -41,7 +41,7 @@
     - { path: /opt/docker/semaphore/db, owner: '70', group: '70', recurse: true, service: 'semaphore' }
     - { path: /opt/docker/semaphore/playbooks, service: 'semaphore' }
     - { path: /opt/docker/homeassistant/config, service: 'homeassistant' }
-    - { path: /opt/docker/homeassistant/matter, service: 'homeassistant' }
+    - { path: /opt/docker/homeassistant/matter, owner: '1000', group: '1000', recurse: true, service: 'homeassistant' }
     - { path: /opt/docker/prometheus/config, service: 'prometheus' }
     - { path: /opt/docker/prometheus/data, owner: '65534', recurse: true, service: 'prometheus' }
     - { path: /opt/docker/grafana/data, owner: '472', group: '472', recurse: true, service: 'grafana' }

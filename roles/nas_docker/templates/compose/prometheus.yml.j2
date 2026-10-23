@@ -16,8 +16,6 @@ services:
   node-exporter-nas:
     image: prom/node-exporter:latest
     container_name: node-exporter-nas
-    ports:
-      - "9101:9100"
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro

@@ -54,6 +54,14 @@ nas-01.taildfad90.ts.net:3002 {
     reverse_proxy adguard:80
 }
 
+# Matter Server Dashboard & WebSocket (Internal Access via Tailscale)
+nas-01.taildfad90.ts.net:3003 {
+    tls {
+        get_certificate tailscale
+    }
+    reverse_proxy 192.168.178.46:5580
+}
+
 # Paperless-ngx (Public Access via INWX Domain)
 docs.rnet.at {
     tls {

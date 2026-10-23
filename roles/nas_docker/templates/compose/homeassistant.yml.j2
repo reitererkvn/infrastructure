@@ -21,8 +21,9 @@ services:
 
   matter-server:
     container_name: matter-server
-    image: ghcr.io/home-assistant-libs/python-matter-server:stable
-    command: --storage-path /data --paa-root-cert-dir /data/credentials --primary-interface enp1s0
+    image: ghcr.io/matter-js/matterjs-server:stable
+    user: "0:0"
+    command: --storage-path /data --primary-interface {{ ansible_default_ipv4.interface | default('enp2s0') }} --production-mode
     restart: unless-stopped
     security_opt:
       - apparmor=unconfined

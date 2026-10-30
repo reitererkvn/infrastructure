@@ -1,5 +1,7 @@
 services:
   ollama:
+    # Pinned to 0.2.8 (CUDA 11/12) for Pascal GTX 1070 Ti (Compute 6.1, Driver 550);
+    # newer ollama:latest (0.40+) requires CUDA 13 / Driver >= 570 and falls back to CPU.
     image: docker.io/ollama/ollama:0.2.8
     container_name: ollama
     restart: unless-stopped

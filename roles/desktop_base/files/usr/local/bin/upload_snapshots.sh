@@ -31,7 +31,6 @@ fi
 sync_to_nas() {
     local src_dir=$1
     local dst_dir=$2
-    local last_snap=""
 
     log "Verarbeite Snapshots in $src_dir..."
 
@@ -42,9 +41,14 @@ sync_to_nas() {
         return 0
     fi
 
+    # 1. Neue Snapshots von SSD auf NAS-HDD senden
     for snap in $snaps; do
         id=$(basename "$snap")
         snap_path="$snap/snapshot"
+
+        if [[ ! -d "$snap_path" ]]; then
+            continue
+        fi
 
         # Logische Prüfung über SSH: Existiert der Snapshot auf dem NAS bereits?
         if ssh "$NAS_USER@$NAS_IP" "[ -d \"$dst_dir/$id\" ]" 2>/dev/null; then
@@ -52,27 +56,40 @@ sync_to_nas() {
         else
             log "  ID $id: Spiegelung auf NAS..."
 
-            if [ -z "$last_snap" ]; then
+            # Finde neuesten gemeinsamen Parent-Snapshot, der lokal UND auf dem NAS existiert
+            local last_id=""
+            for hdd_id in $(ssh "$NAS_USER@$NAS_IP" "ls -1 \"$dst_dir\" 2>/dev/null | grep -E '^[0-9]+$' | sort -nr" 2>/dev/null); do
+                if [[ -d "$src_dir/$hdd_id/snapshot" ]]; then
+                    last_id="$hdd_id"
+                    break
+                fi
+            done
+
+            if [[ -z "$last_id" ]]; then
                 log "    (Initialer Snapshot - Full Send)"
                 btrfs send "$snap_path" | ssh "$NAS_USER@$NAS_IP" "sudo btrfs receive \"$dst_dir/\""
             else
-                log "    (Inkrementell gegen ID $(basename $(dirname $last_snap)))"
-                btrfs send -p "$last_snap" "$snap_path" | ssh "$NAS_USER@$NAS_IP" "sudo btrfs receive \"$dst_dir/\""
+                log "    (Inkrementell gegen gemeinsame Parent-ID $last_id)"
+                btrfs send -p "$src_dir/$last_id/snapshot" "$snap_path" | ssh "$NAS_USER@$NAS_IP" "sudo btrfs receive \"$dst_dir/\""
             fi
 
             # Check pipe status (zsh specific)
             if [[ ${pipestatus[1]} -eq 0 && ${pipestatus[2]} -eq 0 ]]; then
-                # Ordner auf dem Zielsystem umbenennen
                 ssh "$NAS_USER@$NAS_IP" "sudo mv \"$dst_dir/snapshot\" \"$dst_dir/$id\""
                 log "    ID $id: Erfolgreich übertragen."
             else
                 error "Fehler bei der Übertragung von ID $id."
-                # Wir setzen last_snap trotzdem, falls der nächste Snapshot wieder inkrementell gegen diesen (vllt. lokal korrekten) versucht werden soll?
-                # Besser: Abbrechen bei diesem Subvolume, da Inkrement-Kette unterbrochen.
                 return 1
             fi
         fi
-        last_snap="$snap_path"
+    done
+
+    # 2. 1:1 Bereinigung: Lösche Snapshots auf der NAS-HDD, die Snapper lokal auf der SSD bereits gelöscht hat
+    for hdd_id in $(ssh "$NAS_USER@$NAS_IP" "ls -1 \"$dst_dir\" 2>/dev/null | grep -E '^[0-9]+$' | sort -n" 2>/dev/null); do
+        if [[ ! -d "$src_dir/$hdd_id/snapshot" ]]; then
+            log "  Bereinige abgelaufenen Snapshot ID $hdd_id auf NAS ($dst_dir)..."
+            ssh "$NAS_USER@$NAS_IP" "sudo btrfs subvolume delete \"$dst_dir/$hdd_id\" || sudo rm -rf \"$dst_dir/$hdd_id\"" 2>/dev/null
+        fi
     done
 }
 

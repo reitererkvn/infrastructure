@@ -38,26 +38,34 @@
     group: "{{ item.group | default('root') }}"
     recurse: "{{ item.recurse | default(false) }}"
   loop:
+    - { path: /opt/docker/semaphore, service: 'semaphore' }
     - { path: /opt/docker/semaphore/db, owner: '70', group: '70', recurse: true, service: 'semaphore' }
     - { path: /opt/docker/semaphore/playbooks, service: 'semaphore' }
+    - { path: /opt/docker/homeassistant, service: 'homeassistant' }
     - { path: /opt/docker/homeassistant/config, service: 'homeassistant' }
     - { path: /opt/docker/homeassistant/matter, owner: '1000', group: '1000', recurse: true, service: 'homeassistant' }
+    - { path: /opt/docker/prometheus, service: 'prometheus' }
     - { path: /opt/docker/prometheus/config, service: 'prometheus' }
     - { path: /opt/docker/prometheus/data, owner: '65534', recurse: true, service: 'prometheus' }
+    - { path: /opt/docker/grafana, service: 'grafana' }
     - { path: /opt/docker/grafana/data, owner: '472', group: '472', recurse: true, service: 'grafana' }
     - { path: /opt/docker/caddy, service: 'caddy' }
     - { path: /opt/docker/caddy/data, service: 'caddy' }
     - { path: /opt/docker/caddy/config, service: 'caddy' }
+    - { path: /opt/docker/vaultwarden, service: 'vaultwarden' }
     - { path: /opt/docker/vaultwarden/data, service: 'vaultwarden' }
     - { path: /opt/docker/immich, group: "root", service: 'immich' }
     - { path: /opt/docker/immich/model-cache, group: "root", service: 'immich' }
     - { path: /opt/docker/cloudflared, service: 'cloudflared' }
+    - { path: /opt/docker/adguard, service: 'adguard' }
     - { path: /opt/docker/adguard/work, service: 'adguard' }
     - { path: /opt/docker/adguard/conf, service: 'adguard' }
+    - { path: /opt/docker/paperless, service: 'paperless' }
     - { path: /opt/docker/paperless/data, service: 'paperless' }
     - { path: /opt/docker/paperless/db, service: 'paperless' }
     - { path: /opt/docker/paperless/consume, service: 'paperless' }
     - { path: /mnt/HDD-01/paperless/media, service: 'paperless' }
+    - { path: /opt/docker/ollama, service: 'ollama' }
     - { path: /opt/docker/ollama/data, service: 'ollama' }
   when: "item.service in (docker_apps_services | default([]))"
 - name: Deploy Prometheus configuration

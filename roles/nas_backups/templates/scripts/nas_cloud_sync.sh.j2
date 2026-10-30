@@ -1,6 +1,6 @@
 #!/bin/bash
 # nas_cloud_sync.sh
-# Lädt die Snapshots von der HDD in die Cloud (Restic).
+# Lädt die neuesten Snapshots von der HDD in die Cloud (Restic).
 # SRE Optimized: Balanced for 110Mbit Uplink & Google Drive API Limits.
 
 MODE=$1 # 'homeserver' oder 'nas'
@@ -12,7 +12,7 @@ if [[ "$MODE" == "homeserver" ]]; then
 elif [[ "$MODE" == "nas" ]]; then
     CLOUD_DEST="rclone:gdrive:backups/nas_restic_repo"
     HDD_DEST="/mnt/HDD-01/backups/nas"
-    SYSTEMS=("root" "home" "immich" "immich-data")
+    SYSTEMS=("root" "home" "immich" "immich-data" "paperless-data")
 else
     echo "Usage: $0 [homeserver|nas]"
     exit 1
@@ -40,7 +40,7 @@ fi
 RESTIC_CACHE="/root/.cache/restic"
 mkdir -p "$RESTIC_CACHE"
 
-# SRE-Fix: Optimized for new Google Drive Limits (24k QPM)
+# SRE-Fix: Optimized for Google Drive Limits
 RCLONE_CONF="serve restic --stdio --timeout 15m --contimeout 15m --tpslimit 200 --tpslimit-burst 250 --drive-chunk-size 64M"
 
 # --- Stale Lock Management ---
@@ -49,14 +49,19 @@ restic -o rclone.args="$RCLONE_CONF" \
     -r "$CLOUD_DEST" \
     --password-file "$RESTIC_PASS" \
     --cache-dir "$RESTIC_CACHE" \
-    unlock || echo "[!] Lock-Bereigigung nicht möglich oder nicht nötig."
+    unlock || echo "[!] Lock-Bereinigung nicht möglich oder nicht nötig."
 
 upload_daily() {
     local source_system=$1
     local hdd_path="$HDD_DEST/$source_system"
+    local is_snapper_hdd=false
 
     if [[ "$source_system" == "immich-data" ]]; then
         hdd_path="/mnt/HDD-01/immich/.snapshots"
+        is_snapper_hdd=true
+    elif [[ "$source_system" == "paperless-data" ]]; then
+        hdd_path="/mnt/HDD-01/paperless/.snapshots"
+        is_snapper_hdd=true
     fi
 
     echo "============================================================"
@@ -71,6 +76,10 @@ upload_daily() {
     fi
 
     local snap_dir="$hdd_path/$latest_hdd"
+    if [[ "$is_snapper_hdd" == true ]] && [[ -d "$snap_dir/snapshot" ]]; then
+        snap_dir="$snap_dir/snapshot"
+    fi
+
     echo "[+] Quell-Subvolume: $source_system (Snapshot ID: $latest_hdd)"
 
     echo "--> [Restic] Starte Block-Abgleich..."
@@ -82,27 +91,36 @@ upload_daily() {
             --password-file "$RESTIC_PASS" \
             --cache-dir "$RESTIC_CACHE" \
             backup . \
+            --exclude="./root/.cache" \
+            --exclude="./var/cache" \
+            --exclude="./var/tmp" \
+            --exclude="./var/lib/docker" \
+            --exclude="./var/lib/containerd" \
             --compression auto \
             --pack-size 128 \
             --group-by host,tags \
             --tag "$source_system"
     ) || return
 
-    # Retention Policy
+    # Retention Policy (WICHTIG: --group-by host,tags, da sich der Snapshot-Pfad täglich ändert!)
     echo "--> [Restic] Bereinige alte Snapshots (Retention Policy) ..."
     restic -o rclone.args="$RCLONE_CONF" \
         -r "$CLOUD_DEST" \
         --password-file "$RESTIC_PASS" \
         --cache-dir "$RESTIC_CACHE" \
-        forget --keep-daily 14 --keep-weekly 8 --keep-monthly 12 --keep-yearly 1 --prune --tag "$source_system"
+        forget \
+        --group-by host,tags \
+        --tag "$source_system" \
+        --keep-daily 14 \
+        --keep-weekly 8 \
+        --keep-monthly 12 \
+        --keep-yearly 1 \
+        --prune
 }
 
 for sys in "${SYSTEMS[@]}"; do
     upload_daily "$sys"
 done
 
-# --- HDD Standby Logic ---
 echo "[+] Backup-Vorgänge für $MODE abgeschlossen."
-sudo /sbin/hdparm -y /dev/disk/by-id/ata-TOSHIBA_DT01ACA100_16IWN23MS
-
 flock -u 200

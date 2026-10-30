@@ -16,6 +16,7 @@
       - tmux
       - jq
       - sqlite3
+      - zstd
       - btrfs-progs
       - hdparm
       - rclone
@@ -123,3 +124,21 @@
     src: rclone.conf.j2
     dest: /root/.config/rclone/rclone.conf
     mode: '0600'
+
+- name: Configure native HDD spindown in /etc/hdparm.conf
+  ansible.builtin.copy:
+    dest: /etc/hdparm.conf
+    content: |
+      # Managed by Ansible (nas_base)
+      # Native ATA standby timer (240 = 20 minutes) for SATA HDDs
+      # Uses force_spindown_time to bypass Debian APM check (#758988) on WD Red CMR drives
+      quiet
+      force_spindown_time = 240
+
+      /dev/disk/by-label/HDD-01 {
+          force_spindown_time = 240
+      }
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Apply hdparm settings

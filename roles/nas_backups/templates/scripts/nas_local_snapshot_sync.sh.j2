@@ -1,30 +1,63 @@
 #!/bin/bash
 # nas_local_snapshot_sync.sh
-# Spiegelt lokale SSD-Snapshots auf die HDD für lokale Redundanz.
-# SRE-Fix: Korrekte inkrementelle btrfs-send Logik über SSD-basierte Parents.
+# 1. Erzeugt transaktionssichere Datenbank-Dumps (PostgreSQL & SQLite) vor dem Snapshot-Lauf.
+# 2. Spiegelt lokale SSD-Snapshots 1:1 auf die HDD (inkl. Bereinigung abgelaufener Snapshots).
+# 3. Erzeugt nächtliche Snapper-Snapshots für die HDD-Primärarchive (immich-hdd, paperless-hdd).
 
 DEST_BASE="/mnt/HDD-01/backups/nas"
 TRIGGER_DIR="/var/lib/nas-sync-triggers"
+
+dump_databases() {
+    echo "[+] Erzeuge konsistente Datenbank-Dumps vor Snapshot-Erstellung..."
+
+    # PostgreSQL Dumps (komprimiert via zstd)
+    if sudo docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep -qx "immich_postgres"; then
+        echo "  -> PostgreSQL Dump: immich_postgres"
+        sudo docker exec immich_postgres pg_dumpall -c -U postgres | sudo zstd -q -f -o /opt/docker/immich/db_dump.sql.zst
+    fi
+
+    if sudo docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep -qx "paperless_db"; then
+        echo "  -> PostgreSQL Dump: paperless_db"
+        sudo docker exec paperless_db pg_dumpall -c -U paperless | sudo zstd -q -f -o /opt/docker/paperless/db_dump.sql.zst
+    fi
+
+    if sudo docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep -qx "semaphore-db"; then
+        echo "  -> PostgreSQL Dump: semaphore-db"
+        sudo docker exec semaphore-db pg_dumpall -c -U semaphore | sudo zstd -q -f -o /opt/docker/semaphore/db_dump.sql.zst
+    fi
+
+    # SQLite Online-Backups (WAL-safe via sqlite3 .backup)
+    if [ -f /opt/docker/vaultwarden/data/db.sqlite3 ]; then
+        echo "  -> SQLite Backup: vaultwarden"
+        sudo sqlite3 /opt/docker/vaultwarden/data/db.sqlite3 ".backup '/opt/docker/vaultwarden/data/db_backup.sqlite3'"
+    fi
+
+    if [ -f /opt/docker/grafana/data/grafana.db ]; then
+        echo "  -> SQLite Backup: grafana"
+        sudo sqlite3 /opt/docker/grafana/data/grafana.db ".backup '/opt/docker/grafana/data/grafana_backup.db'"
+    fi
+
+    if [ -f /opt/docker/homeassistant/config/home-assistant_v2.db ]; then
+        echo "  -> SQLite Backup: homeassistant"
+        sudo sqlite3 /opt/docker/homeassistant/config/home-assistant_v2.db ".backup '/opt/docker/homeassistant/config/home-assistant_v2_backup.db'"
+    fi
+}
 
 sync_local() {
     local src_dir=$1
     local dst_dir=$2
 
-    # Erstelle Zielstruktur falls nötig
     sudo mkdir -p "$dst_dir"
 
-    # Sortiere Snapshots numerisch (Snapper Struktur)
-    # Nutze find um Fehler bei leeren Verzeichnissen zu vermeiden
+    # 1. Neue Snapshots von SSD auf HDD übertragen (inkrementell)
     for snap in $(sudo find "$src_dir" -maxdepth 1 -name "[0-9]*" | sort -V); do
         id=$(basename "$snap")
         snap_path="$snap/snapshot"
 
-        if [ ! -d "$dst_dir/$id" ]; then
+        if [ ! -d "$dst_dir/$id" ] && [ -d "$snap_path" ]; then
             echo "--> Lokale Spiegelung ID $id nach $dst_dir..."
 
-            # Finde den neuesten gemeinsamen Snapshot auf Quelle (SSD) und Ziel (HDD)
             local last_id=""
-            # Wir suchen rückwärts durch die bereits gesicherten IDs auf der HDD
             for hdd_id in $(ls -1 "$dst_dir" 2>/dev/null | grep -E "^[0-9]+$" | sort -nr); do
                 if [ -d "$src_dir/$hdd_id/snapshot" ]; then
                     last_id=$hdd_id
@@ -40,20 +73,39 @@ sync_local() {
                 sudo btrfs send -p "$src_dir/$last_id/snapshot" "$snap_path" | sudo btrfs receive "$dst_dir/"
             fi
 
-            # Snapper-Struktur flachklopfen für einfachere Restic-Sicherung
-            sudo mv "$dst_dir/snapshot" "$dst_dir/$id"
+            if [ -d "$dst_dir/snapshot" ]; then
+                sudo mv "$dst_dir/snapshot" "$dst_dir/$id"
+            fi
+        fi
+    done
+
+    # 2. 1:1 Bereinigung: Lösche Snapshots auf der HDD, die Snapper auf der SSD bereits aufgeräumt hat
+    for hdd_id in $(ls -1 "$dst_dir" 2>/dev/null | grep -E "^[0-9]+$" | sort -n); do
+        if [ ! -d "$src_dir/$hdd_id/snapshot" ]; then
+            echo "--> Bereinige abgelaufenen Snapshot ID $hdd_id aus $dst_dir..."
+            sudo btrfs subvolume delete "$dst_dir/$hdd_id" || sudo rm -rf "$dst_dir/$hdd_id"
         fi
     done
 }
 
+# Schritt 1: Datenbank-Dumps erzeugen und frische SSD-Snapshots sicherstellen
+dump_databases
+echo "[+] Erzeuge aktuelle SSD-Snapshots nach DB-Dump..."
+sudo snapper -c root create --cleanup-algorithm number --description "Nightly Sync"
+sudo snapper -c immich create --cleanup-algorithm number --description "Nightly Sync"
+
+# Schritt 2: Lokaler Snapshot-Sync (SSD -> HDD, 1:1 Spiegelung)
 echo "[+] Starte lokalen Snapshot-Sync (SSD -> HDD)..."
 sync_local "/.snapshots" "$DEST_BASE/root"
 sync_local "/home/.snapshots" "$DEST_BASE/home"
 sync_local "/opt/docker/immich/.snapshots" "$DEST_BASE/immich"
 
-echo "[+] Erzeuge Snapper-Snapshot für Immich-Archiv auf HDD..."
-sudo snapper -c immich-hdd create --description "Nightly Archive Backup"
+# Schritt 3: Nächtliche Snapper-Snapshots für Primärdaten auf der HDD (mit Number-Cleanup)
+echo "[+] Erzeuge Snapper-Snapshots für HDD-Archive (immich-hdd & paperless-hdd)..."
+sudo snapper -c immich-hdd create --cleanup-algorithm number --description "Nightly Archive Backup"
+sudo snapper -c paperless-hdd create --cleanup-algorithm number --description "Nightly Archive Backup"
 
+# Schritt 4: Cloud-Backup triggern
 echo "[+] Lokaler Sync abgeschlossen. Erstelle Trigger-Datei für Cloud-Backup (SSD-based)..."
 sudo mkdir -p "$TRIGGER_DIR"
 sudo touch "$TRIGGER_DIR/nas_local_sync.done"

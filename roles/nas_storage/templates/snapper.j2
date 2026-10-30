@@ -23,7 +23,7 @@ SYNC_ACL="no"
 
 # start comparing pre- and post-snapshot in background after creating
 # post-snapshot
-BACKGROUND_COMPARISON="yes"
+BACKGROUND_COMPARISON="{{ item.bg_compare | default('yes') }}"
 
 # run daily number cleanup
 NUMBER_CLEANUP="yes"
@@ -34,7 +34,7 @@ NUMBER_LIMIT="50"
 NUMBER_LIMIT_IMPORTANT="10"
 
 # create hourly snapshots
-TIMELINE_CREATE="yes"
+TIMELINE_CREATE="{{ item.timeline_create | default('yes') }}"
 
 # cleanup hourly snapshots after some time
 TIMELINE_CLEANUP="yes"

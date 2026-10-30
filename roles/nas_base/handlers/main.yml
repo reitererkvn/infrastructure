@@ -11,3 +11,7 @@
   ansible.builtin.systemd:
     name: systemd-networkd
     state: restarted
+
+- name: Apply hdparm settings
+  ansible.builtin.command: /usr/lib/pm-utils/power.d/95hdparm-apm resume
+  changed_when: true

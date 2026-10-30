@@ -9,6 +9,8 @@
     - /mnt/HDD-01/backups
     - /mnt/HDD-01/immich
     - /mnt/HDD-01/immich/.snapshots
+    - /mnt/HDD-01/paperless
+    - /mnt/HDD-01/paperless/.snapshots
     - /opt/docker/immich
     - /.snapshots
     - /home/.snapshots
@@ -46,6 +48,8 @@
     - backups
     - immich
     - immich_snapshots
+    - paperless
+    - paperless_snapshots
 
 - name: Mount HDD Subvolumes
   ansible.posix.mount:
@@ -58,6 +62,8 @@
     - { path: '/mnt/HDD-01/backups', subvol: 'backups' }
     - { path: '/mnt/HDD-01/immich', subvol: 'immich' }
     - { path: '/mnt/HDD-01/immich/.snapshots', subvol: 'immich_snapshots' }
+    - { path: '/mnt/HDD-01/paperless', subvol: 'paperless' }
+    - { path: '/mnt/HDD-01/paperless/.snapshots', subvol: 'paperless_snapshots' }
 
 # MergerFS Mount
 - name: Install mergerfs package
@@ -79,19 +85,40 @@
     name: snapper
     state: present
 
-- name: Create snapper configs
-  ansible.builtin.command: snapper -c {{ item.name }} create-config {{ item.subvol_path }}
-  args:
-    creates: /etc/snapper/configs/{{ item.name }}
-  loop:
-    - { name: 'root', subvol_path: '/' }
-    - { name: 'home', subvol_path: '/home' }
+- name: Remove legacy broken snapper config (immich_data)
+  ansible.builtin.file:
+    path: /etc/snapper/configs/immich_data
+    state: absent
 
-- name: Deploy snapper configurations
+- name: Deploy snapper configurations (SSD and HDD)
   ansible.builtin.template:
     src: snapper.j2
     dest: /etc/snapper/configs/{{ item.name }}
-    mode: '0644'
+    owner: root
+    group: root
+    mode: '0640'
   loop:
-    - { name: 'root', subvol_path: '/' }
-    - { name: 'home', subvol_path: '/home' }
+    - { name: 'root', subvol_path: '/', timeline_create: 'yes', bg_compare: 'yes' }
+    - { name: 'home', subvol_path: '/home', timeline_create: 'yes', bg_compare: 'yes' }
+    - { name: 'immich', subvol_path: '/opt/docker/immich', timeline_create: 'yes', bg_compare: 'yes' }
+    - { name: 'immich-hdd', subvol_path: '/mnt/HDD-01/immich', timeline_create: 'no', bg_compare: 'no' }
+    - { name: 'paperless-hdd', subvol_path: '/mnt/HDD-01/paperless', timeline_create: 'no', bg_compare: 'no' }
+
+- name: Register active snapper configs in /etc/default/snapper
+  ansible.builtin.lineinfile:
+    path: /etc/default/snapper
+    regexp: '^SNAPPER_CONFIGS='
+    line: 'SNAPPER_CONFIGS="root home immich immich-hdd paperless-hdd"'
+    create: yes
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Ensure snapper timers are enabled and started
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  loop:
+    - snapper-timeline.timer
+    - snapper-cleanup.timer

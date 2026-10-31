@@ -96,6 +96,13 @@
     owner: root
     group: root
 
+- name: Ensure nas-01 is mapped to local LAN IP in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^192\.168\.178\.46\s+'
+    line: '192.168.178.46  nas-01 nas-01.fritz.box'
+    state: present
+
 - name: Ensure kevin rclone config directory exists
   ansible.builtin.file:
     path: /home/kevin/.config/rclone

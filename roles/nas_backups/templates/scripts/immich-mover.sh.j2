@@ -1,20 +1,52 @@
 #!/bin/bash
+set -uo pipefail
+
 SOURCE="/opt/docker/immich/data/"
 DEST="/mnt/HDD-01/immich/"
 LIMIT_KB=$((50 * 1024 * 1024)) # 50 GB
+LOCKFILE="/var/lock/immich-mover.lock"
+
+exec 200>"$LOCKFILE"
+if ! flock -n 200; then
+    echo "[!] immich-mover läuft bereits. Breche ab."
+    exit 0
+fi
+
+if [ ! -d "$SOURCE" ] || [ ! -d "$DEST" ]; then
+    echo "[FEHLER] Quell- oder Zielverzeichnis fehlt ($SOURCE -> $DEST)." >&2
+    exit 1
+fi
 
 # Aktuelle Größe der SSD in KB prüfen
 CURRENT_SIZE=$(du -sk "$SOURCE" | cut -f1)
 
 if [ "$CURRENT_SIZE" -gt "$LIMIT_KB" ]; then
-    echo "SSD Limit überschritten ($CURRENT_SIZE KB). Verschiebe alte Dateien..."
-    
-    # Finde Dateien, die älter als 7 Tage sind, und verschiebe sie
-    # (Dieser Ansatz ist performanter als ständiges Nachmessen beim Verschieben)
-    find "$SOURCE" -type f -mtime +7 -exec rsync -a --remove-source-files {} "$DEST" \;
-    
-    # Leere Ordner auf der SSD aufräumen
-    find "$SOURCE" -type d -empty -delete
+    echo "SSD Limit überschritten ($CURRENT_SIZE KB). Suche alte Dateien (> 7 Tage)..."
+
+    TMP_LIST=$(mktemp)
+    trap 'rm -f "$TMP_LIST"' EXIT
+
+    cd "$SOURCE" || exit 1
+    if ! find . -type f -mtime +7 -print0 > "$TMP_LIST"; then
+        echo "[FEHLER] find beim Durchsuchen von $SOURCE fehlgeschlagen." >&2
+        exit 1
+    fi
+
+    if [ ! -s "$TMP_LIST" ]; then
+        echo "Keine Dateien älter als 7 Tage gefunden. HDD bleibt im Standby."
+        exit 0
+    fi
+
+    FILE_COUNT=$(tr -cd '\0' < "$TMP_LIST" | wc -c)
+    echo "Verschiebe $FILE_COUNT Dateien unter Beibehaltung der Ordnerstruktur..."
+
+    if ! rsync -a --relative --remove-source-files --files-from="$TMP_LIST" --from0 . "$DEST"; then
+        echo "[FEHLER] rsync beim Verschieben alter Immich-Dateien fehlgeschlagen!" >&2
+        exit 1
+    fi
+
+    # Nur tiefe Unterordner aufräumen; Top-Level-Ordner (library, thumbs, ...) für MergerFS 'ff' erhalten
+    find "$SOURCE" -mindepth 2 -type d -empty -delete
     echo "Verschieben abgeschlossen."
 else
     echo "SSD Belegung ($CURRENT_SIZE KB) ist unter dem Limit von 50 GB. Nichts zu tun."

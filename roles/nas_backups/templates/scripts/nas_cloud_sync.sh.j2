@@ -3,7 +3,15 @@
 # Lädt die neuesten Snapshots von der HDD in die Cloud (Restic).
 # SRE Optimized: Balanced for 110Mbit Uplink & Google Drive API Limits.
 
-MODE=$1 # 'homeserver' oder 'nas'
+set -uo pipefail
+
+MODE=${1:-} # 'homeserver' oder 'nas'
+ERRORS=0
+
+record_error() {
+    echo "[FEHLER] $1" >&2
+    ERRORS=$((ERRORS + 1))
+}
 
 if [[ "$MODE" == "homeserver" ]]; then
     CLOUD_DEST="rclone:gdrive:backups/homeserver_restic_repo"
@@ -14,13 +22,13 @@ elif [[ "$MODE" == "nas" ]]; then
     HDD_DEST="/mnt/HDD-01/backups/nas"
     SYSTEMS=("root" "home" "immich" "immich-data" "paperless-data")
 else
-    echo "Usage: $0 [homeserver|nas]"
+    echo "Usage: $0 [homeserver|nas]" >&2
     exit 1
 fi
 
 # --- Global Lock (Avoid Parallel API Pressure) ---
 LOCKFILE="/var/lock/nas_cloud_sync.global.lock"
-exec 200>$LOCKFILE
+exec 200>"$LOCKFILE"
 if ! flock -n 200; then
     echo "[!] Ein anderes Cloud-Backup läuft bereits. Warte auf Freigabe durch den globalen Lock..."
     flock 200
@@ -33,7 +41,7 @@ RESTIC_PASS="/root/.config/restic/password"
 export RCLONE_CONFIG="/root/.config/rclone/rclone.conf"
 
 if [[ ! -s "$RESTIC_PASS" ]]; then
-    echo "[FEHLER] Restic Passwort nicht gefunden in $RESTIC_PASS!"
+    echo "[FEHLER] Restic Passwort nicht gefunden in $RESTIC_PASS!" >&2
     exit 1
 fi
 
@@ -68,11 +76,11 @@ upload_daily() {
     echo "Processing Subvolume: $source_system"
 
     local latest_hdd
-    latest_hdd=$(ls -1 "$hdd_path" 2>/dev/null | grep -E '^[0-9]+$' | sort -n | tail -1)
+    latest_hdd=$(ls -1 "$hdd_path" 2>/dev/null | grep -E '^[0-9]+$' | sort -n | tail -1 || true)
 
     if [[ -z "$latest_hdd" ]]; then
-        echo "[FEHLER] Keine Snapshots für $source_system auf HDD gefunden!"
-        return
+        record_error "Keine Snapshots für $source_system auf HDD gefunden ($hdd_path)!"
+        return 1
     fi
 
     local snap_dir="$hdd_path/$latest_hdd"
@@ -80,10 +88,15 @@ upload_daily() {
         snap_dir="$snap_dir/snapshot"
     fi
 
+    if [[ ! -d "$snap_dir" ]]; then
+        record_error "Snapshot-Verzeichnis nicht gefunden: $snap_dir"
+        return 1
+    fi
+
     echo "[+] Quell-Subvolume: $source_system (Snapshot ID: $latest_hdd)"
 
     echo "--> [Restic] Starte Block-Abgleich..."
-    (
+    if ! (
         cd "$snap_dir" || exit 1
         restic -o rclone.args="$RCLONE_CONF" \
             -o rclone.connections=4 \
@@ -100,11 +113,14 @@ upload_daily() {
             --pack-size 128 \
             --group-by host,tags \
             --tag "$source_system"
-    ) || return
+    ); then
+        record_error "Restic backup für $source_system fehlgeschlagen"
+        return 1
+    fi
 
     # Retention Policy (WICHTIG: --group-by host,tags, da sich der Snapshot-Pfad täglich ändert!)
     echo "--> [Restic] Bereinige alte Snapshots (Retention Policy) ..."
-    restic -o rclone.args="$RCLONE_CONF" \
+    if ! restic -o rclone.args="$RCLONE_CONF" \
         -r "$CLOUD_DEST" \
         --password-file "$RESTIC_PASS" \
         --cache-dir "$RESTIC_CACHE" \
@@ -115,12 +131,21 @@ upload_daily() {
         --keep-weekly 8 \
         --keep-monthly 12 \
         --keep-yearly 1 \
-        --prune
+        --prune; then
+        record_error "Restic forget/prune für $source_system fehlgeschlagen"
+        return 1
+    fi
 }
 
 for sys in "${SYSTEMS[@]}"; do
     upload_daily "$sys"
 done
 
-echo "[+] Backup-Vorgänge für $MODE abgeschlossen."
 flock -u 200
+
+if [[ "$ERRORS" -gt 0 ]]; then
+    echo "[FEHLER] Cloud-Backup ($MODE) mit $ERRORS Fehler(n) beendet!" >&2
+    exit 1
+fi
+
+echo "[+] Backup-Vorgänge für $MODE abgeschlossen."

@@ -1,24 +1,67 @@
 ---
-- name: Ensure mount points exist
+- name: Check existing BTRFS subvolumes on NAS-SSD
+  ansible.builtin.command: btrfs subvolume list -t /
+  register: nas_ssd_subvolumes
+  changed_when: false
+
+- name: Determine missing SSD subvolumes
+  ansible.builtin.set_fact:
+    nas_ssd_missing_subvols: >-
+      {{
+        ['@immich', '@snapshots', '@home_snapshots', '@immich_snapshots']
+        | reject('in', nas_ssd_subvolumes.stdout_lines | map('regex_replace', '^.*\t', '') | list)
+        | list
+      }}
+
+- name: Ensure temporary SSD root mountpoint exists when creating missing SSD subvolumes
+  ansible.builtin.file:
+    path: /mnt/nas-ssd-root
+    state: directory
+    mode: '0755'
+  when: nas_ssd_missing_subvols | length > 0
+
+- name: Temporarily mount NAS-SSD top-level root to create missing subvolumes
+  ansible.posix.mount:
+    path: /mnt/nas-ssd-root
+    src: "LABEL=NAS-SSD"
+    fstype: btrfs
+    opts: subvol=/
+    state: ephemeral
+  when: nas_ssd_missing_subvols | length > 0
+
+- name: Create missing SSD subvolumes
+  ansible.builtin.command: "btrfs subvolume create /mnt/nas-ssd-root/{{ item }}"
+  args:
+    creates: "/mnt/nas-ssd-root/{{ item }}"
+  loop: "{{ nas_ssd_missing_subvols }}"
+  when: nas_ssd_missing_subvols | length > 0
+
+- name: Unmount temporary NAS-SSD root
+  ansible.posix.mount:
+    path: /mnt/nas-ssd-root
+    state: unmounted
+  when: nas_ssd_missing_subvols | length > 0
+
+- name: Remove temporary SSD root mountpoint
+  ansible.builtin.file:
+    path: /mnt/nas-ssd-root
+    state: absent
+
+- name: Ensure top-level mount points and trigger directory exist
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
     mode: '0755'
   loop:
     - /mnt/HDD-01
-    - /mnt/HDD-01/backups
-    - /mnt/HDD-01/immich
-    - /mnt/HDD-01/immich/.snapshots
-    - /mnt/HDD-01/paperless
-    - /mnt/HDD-01/paperless/.snapshots
     - /opt/docker/immich
     - /.snapshots
     - /home/.snapshots
-    - /opt/docker/immich/.snapshots
     - /lib/immich
+    - /var/lib/nas-sync-triggers
 
-# SSD Mounts (assuming the base installation mounted / and created rootfs)
-- name: Mount SSD Subvolumes
+# SSD Mounts
+- name: Mount primary SSD Subvolumes
   ansible.posix.mount:
     path: "{{ item.path }}"
     src: "LABEL=NAS-SSD"
@@ -29,7 +72,23 @@
     - { path: '/opt/docker/immich', subvol: '@immich' }
     - { path: '/.snapshots', subvol: '@snapshots' }
     - { path: '/home/.snapshots', subvol: '@home_snapshots' }
-    - { path: '/opt/docker/immich/.snapshots', subvol: '@immich_snapshots' }
+
+- name: Ensure Immich SSD data branch and snapshot mountpoint exist inside @immich
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /opt/docker/immich/data
+    - /opt/docker/immich/.snapshots
+
+- name: Mount Immich SSD snapshots subvolume
+  ansible.posix.mount:
+    path: /opt/docker/immich/.snapshots
+    src: "LABEL=NAS-SSD"
+    fstype: btrfs
+    opts: "subvol=@immich_snapshots,compress=zstd,ssd"
+    state: mounted
 
 # HDD Mounts & Creation
 - name: Mount HDD root
@@ -51,7 +110,17 @@
     - paperless
     - paperless_snapshots
 
-- name: Mount HDD Subvolumes
+- name: Ensure primary HDD subvolume mount points exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /mnt/HDD-01/backups
+    - /mnt/HDD-01/immich
+    - /mnt/HDD-01/paperless
+
+- name: Mount primary HDD Subvolumes
   ansible.posix.mount:
     path: "{{ item.path }}"
     src: LABEL=HDD-01
@@ -61,8 +130,26 @@
   loop:
     - { path: '/mnt/HDD-01/backups', subvol: 'backups' }
     - { path: '/mnt/HDD-01/immich', subvol: 'immich' }
-    - { path: '/mnt/HDD-01/immich/.snapshots', subvol: 'immich_snapshots' }
     - { path: '/mnt/HDD-01/paperless', subvol: 'paperless' }
+
+- name: Ensure HDD snapshot mount points exist inside mounted subvolumes
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /mnt/HDD-01/immich/.snapshots
+    - /mnt/HDD-01/paperless/.snapshots
+
+- name: Mount HDD snapshot subvolumes
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: LABEL=HDD-01
+    fstype: btrfs
+    opts: "subvol=/{{ item.subvol }},noatime,compress=zstd"
+    state: mounted
+  loop:
+    - { path: '/mnt/HDD-01/immich/.snapshots', subvol: 'immich_snapshots' }
     - { path: '/mnt/HDD-01/paperless/.snapshots', subvol: 'paperless_snapshots' }
 
 # MergerFS Mount

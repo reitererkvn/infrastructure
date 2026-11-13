@@ -33,6 +33,7 @@ services:
       - semaphore-db
     volumes:
       - /opt/docker/semaphore/playbooks:/home/semaphore/playbooks
+      - /opt/docker/semaphore/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
     restart: unless-stopped
 
 networks:

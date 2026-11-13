@@ -21,12 +21,24 @@
     - net.ipv6.conf.default.accept_ra_rt_info_max_plen
     - "net.ipv6.conf.{{ ansible_default_ipv4.interface }}.accept_ra_rt_info_max_plen"
   when: "'homeassistant' in (docker_apps_services | default([]))"
+- name: Enable nonlocal IPv4 bind for Tailscale-bound Caddy ports
+  become: true
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: '1'
+    state: present
+    reload: yes
+    sysctl_file: /etc/sysctl.d/99-nonlocal-bind.conf
+  when: "'caddy' in (docker_apps_services | default([]))"
 - name: Ensure proxy_net network exists
   become: true
   community.docker.docker_network:
     name: proxy_net
     state: present
     driver: bridge
+    ipam_config:
+      - subnet: 172.30.0.0/16
+        gateway: 172.30.0.1
   tags: [ docker_apps ]
 - name: Ensure service directories exist
   become: true
@@ -49,6 +61,10 @@
     - { path: /opt/docker/prometheus/data, owner: '65534', recurse: true, service: 'prometheus' }
     - { path: /opt/docker/grafana, service: 'grafana' }
     - { path: /opt/docker/grafana/data, owner: '472', group: '472', recurse: true, service: 'grafana' }
+    - { path: /opt/docker/grafana/provisioning, service: 'grafana' }
+    - { path: /opt/docker/grafana/provisioning/datasources, service: 'grafana' }
+    - { path: /opt/docker/grafana/provisioning/dashboards, service: 'grafana' }
+    - { path: /opt/docker/grafana/provisioning/dashboards/definitions, service: 'grafana' }
     - { path: /opt/docker/caddy, service: 'caddy' }
     - { path: /opt/docker/caddy/data, service: 'caddy' }
     - { path: /opt/docker/caddy/config, service: 'caddy' }
@@ -77,6 +93,18 @@
     owner: root
     group: root
   when: "'prometheus' in (docker_apps_services | default([]))"
+- name: Deploy Grafana provisioning configuration
+  become: true
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: '0644'
+    owner: root
+    group: root
+  loop:
+    - { src: grafana_datasource_prometheus.yml.j2, dest: /opt/docker/grafana/provisioning/datasources/prometheus.yml }
+    - { src: grafana_dashboards_provider.yml.j2, dest: /opt/docker/grafana/provisioning/dashboards/dashboards.yml }
+  when: "'grafana' in (docker_apps_services | default([]))"
 - name: Deploy Docker Compose files
   become: true
   ansible.builtin.template:
@@ -114,6 +142,27 @@
     owner: root
     group: root
   when: "'caddy' in (docker_apps_services | default([]))"
+- name: Gather local SSH host public keys for Semaphore known_hosts
+  become: true
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  loop:
+    - /etc/ssh/ssh_host_ed25519_key.pub
+    - /etc/ssh/ssh_host_ecdsa_key.pub
+  register: nas_ssh_host_pubkeys
+  when: "'semaphore' in (docker_apps_services | default([]))"
+- name: Deploy Semaphore ssh_known_hosts
+  become: true
+  ansible.builtin.copy:
+    dest: /opt/docker/semaphore/ssh_known_hosts
+    content: |
+      {% for key_res in nas_ssh_host_pubkeys.results | default([]) if key_res.content is defined %}
+      nas-01,192.168.178.46,127.0.0.1 {{ (key_res.content | b64decode).strip().split(' ')[0:2] | join(' ') }}
+      {% endfor %}
+    mode: '0644'
+    owner: root
+    group: root
+  when: "'semaphore' in (docker_apps_services | default([]))"
 - name: Deploy Caddyfile configuration
   become: true
   ansible.builtin.template:
@@ -122,14 +171,20 @@
     mode: '0644'
     owner: root
     group: root
+    unsafe_writes: true
   register: caddyfile_status
   when: "'caddy' in (docker_apps_services | default([]))"
+- name: Check Caddy container status before reload
+  become: true
+  ansible.builtin.command: docker ps -q -f name=^/caddy$
+  register: caddy_running
+  changed_when: false
+  when: "'caddy' in (docker_apps_services | default([])) and caddyfile_status.changed"
 - name: Reload Caddy to apply changes
   become: true
   ansible.builtin.command:
     cmd: docker exec caddy caddy reload --config /etc/caddy/Caddyfile
-  when: "'caddy' in (docker_apps_services | default([])) and caddyfile_status.changed"
-  ignore_errors: true
+  when: "'caddy' in (docker_apps_services | default([])) and caddyfile_status.changed and (caddy_running.stdout | default('') != '')"
 - name: Check Semaphore container status
   become: true
   ansible.builtin.command: docker ps -q -f name=semaphore
@@ -142,7 +197,7 @@
   community.docker.docker_compose_v2:
     project_src: "/opt/docker/semaphore/"
     state: present
-    pull: always
+    pull: "{{ 'always' if 'pull_images' in ansible_run_tags else 'missing' }}"
     wait: true
   when: >
     'semaphore' in (docker_apps_services | default([]))
@@ -154,7 +209,7 @@
   community.docker.docker_compose_v2:
     project_src: "/opt/docker/{{ item }}/"
     state: present
-    pull: always
+    pull: "{{ 'always' if 'pull_images' in ansible_run_tags else 'missing' }}"
     wait: true
   loop: "{{ docker_apps_services | default([]) }}"
   vars:

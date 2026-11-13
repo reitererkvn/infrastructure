@@ -66,11 +66,30 @@
   loop:
     - snapshot-backup.timer
     - snapshot-backup.service
-    - system-update.timer
-    - system-update.service
     - backup-on-shutdown.service
     - rclone-localmount@.service
   notify: Reload Systemd
+
+- name: Disable legacy headless system-update timer
+  ansible.builtin.systemd:
+    name: system-update.timer
+    enabled: no
+    state: stopped
+  failed_when: false
+
+- name: Remove legacy headless system-update unit files
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}"
+    state: absent
+  loop:
+    - system-update.timer
+    - system-update.service
+  notify: Reload Systemd
+
+- name: Ensure prometheus-node-exporter is installed
+  community.general.pacman:
+    name: prometheus-node-exporter
+    state: present
 
 - name: Enable System Timers and Services
   ansible.builtin.systemd:
@@ -79,8 +98,23 @@
     state: started
   loop:
     - snapshot-backup.timer
-    - system-update.timer
     - backup-on-shutdown.service
+    - prometheus-node-exporter.service
+
+- name: Check whether firewalld is active
+  ansible.builtin.command: systemctl is-active --quiet firewalld
+  register: desktop_firewalld_status
+  changed_when: false
+  failed_when: false
+
+- name: Allow Prometheus scraping of node_exporter from nas-01
+  ansible.posix.firewalld:
+    zone: public
+    rich_rule: 'rule family="ipv4" source address="192.168.178.46/32" port port="9100" protocol="tcp" accept'
+    permanent: true
+    immediate: true
+    state: enabled
+  when: desktop_firewalld_status.rc == 0
 
 - name: Ensure root rclone config directory exists
   ansible.builtin.file:

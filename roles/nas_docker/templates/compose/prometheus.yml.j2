@@ -16,14 +16,18 @@ services:
   node-exporter-nas:
     image: prom/node-exporter:latest
     container_name: node-exporter-nas
+    network_mode: host
+    pid: host
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      - /:/rootfs:ro
+      - /:/rootfs:ro,rslave
     command:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--web.listen-address=172.30.0.1:9100'
     restart: unless-stopped
 
 networks:

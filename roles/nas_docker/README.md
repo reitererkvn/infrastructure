@@ -8,27 +8,27 @@ Diese Rolle verwaltet und automatisiert die Docker-Container-Infrastruktur auf d
 
 | Service | Container-Name | Port(s) / Interne URL | Zweck / Abhängigkeiten |
 | :--- | :--- | :--- | :--- |
-| **Semaphore** | `semaphore`, `semaphore-db` | `3000` (Web UI via Caddy) | Web-basiertes UI zur Ausführung von Ansible Playbooks. |
-| **Paperless-ngx** | `paperless_webserver`, `paperless_db`, `paperless_redis` | `8002` (Web UI via Caddy) | Dokumentenmanagement & OCR. Nutzt GPU für Beschleunigung und **Ollama** für Text-Embeddings. |
-| **Ollama** | `ollama` | `11434` (`http://ollama:11434`) | Lokale LLM- & Embedding-Inferenz via NVIDIA CUDA (GTX 1070 Ti). Stellt u.a. `mxbai-embed-large` für Paperless bereit. |
-| **Immich** | `immich_server`, `immich_machine_learning`, `immich_postgres`, `immich_redis` | `2285` (Web UI via Caddy) | Selbst gehostetes Foto- und Video-Backup mit KI-gestützter Objekterkennung (CUDA). |
-| **Home Assistant** | `homeassistant`, `matter-server` | Host-Netzwerk (`8123`) | Hausautomatisierung & Matter/Thread Border Controller. |
-| **Vaultwarden** | `vaultwarden` | `8000` (Web UI via Caddy) | Bitwarden-kompatibler Passwort-Tresor. |
-| **AdGuard Home** | `adguard` | `53` (DNS), `3002` (Web UI) | Lokaler DNS- & Ad-Blocker. |
-| **Caddy** | `caddy` | Host-Netzwerk (`80`, `443`) | Reverse Proxy mit automatischem TLS via Cloudflare DNS / Tailscale. |
-| **Monitoring** | `prometheus`, `grafana`, `node-exporter-nas` | `9090`, `3001`, `9101` | Metriken und Systemdashboards. |
-| **Cloudflared** | `cloudflared` | Host-Netzwerk | Cloudflare Zero Trust Tunnel für sichere externe Endpunkte. |
+| **Semaphore** | `semaphore`, `semaphore-db` | `3000` (Tailscale HTTPS via Caddy) | Web-basiertes UI zur Ausführung von Ansible Playbooks. |
+| **Paperless-ngx** | `paperless_webserver`, `paperless_db`, `paperless_redis` | `8000` (intern) / `docs.rnet.at` | Dokumentenmanagement & OCR. Nutzt GPU für Beschleunigung und **Ollama** für Text-Embeddings. |
+| **Ollama** | `ollama` | `127.0.0.1:11434` (`http://ollama:11434` im `proxy_net`) | Lokale LLM- & Embedding-Inferenz via NVIDIA CUDA (`ollama:0.2.8` für GTX 1070 Ti). Stellt `mxbai-embed-large` für Paperless bereit. |
+| **Immich** | `immich_server`, `immich_machine_learning`, `immich_postgres`, `immich_redis` | `2283` (intern) / `immich.rnet.at` | Selbst gehostetes Foto- und Video-Backup mit KI-gestützter Objekterkennung (CUDA). |
+| **Home Assistant** | `homeassistant`, `matter-server` | Host-Netzwerk (`8122` / `ha.rnet.at`, Matter `3003`) | Hausautomatisierung & Matter/Thread Border Controller (`172.30.0.1:5580`). |
+| **Vaultwarden** | `vaultwarden` | `80` (intern) / `vault.rnet.at` | Bitwarden-kompatibler Passwort-Tresor. |
+| **AdGuard Home** | `adguard` | `53` (DNS), `3002` (Tailscale HTTPS via Caddy) | Lokaler DNS- & Ad-Blocker. |
+| **Caddy** | `caddy` | Bridge `proxy_net` (`80`, `443`, `100.72.31.15:3000-3003,9090`) | Reverse Proxy mit automatischem TLS via Cloudflare DNS / Tailscale. |
+| **Monitoring** | `prometheus`, `grafana`, `node-exporter-nas` | `9090`, `3001` (Tailscale HTTPS via Caddy), `172.30.0.1:9100` | Metriken und Systemdashboards. |
+| **Cloudflared** | `cloudflared` | `proxy_net` | Cloudflare Zero Trust Tunnel für sichere externe Endpunkte. |
 
 ---
 
 ## 🧠 Ollama Integration & Modellverwaltung
 
-Ollama läuft containerisiert mit NVIDIA-GPU-Passthrough (`capabilities: [gpu, video, compute, utility]`) und ist sowohl im `proxy_net` erreichbar (`http://ollama:11434`) als auch auf dem Host gebunden (`11434:11434`).
+Ollama läuft containerisiert mit NVIDIA-GPU-Passthrough (`capabilities: [gpu, video, compute, utility]`, gepinnt auf `ollama/ollama:0.2.8` wegen Pascal GTX 1070 Ti / Treiber 550) und ist ausschließlich intern im `proxy_net` (`http://ollama:11434`) sowie auf `127.0.0.1:11434` erreichbar.
 
 ### Zusammenspiel mit Paperless-ngx
 Paperless-ngx nutzt Ollama als dedizierten Embedding-Provider für KI-Vektor-Suche und automatische Klassifizierung:
 * **Modell:** `mxbai-embed-large`
-* **Endpunkt:** `http://ollama:11434` (oder `http://192.168.178.46:11434`)
+* **Endpunkt:** `http://ollama:11434` (über `proxy_net`)
 * **Wichtig:** Wenn Ollama nicht verfügbar ist oder der GPU-Treiber fehlschlägt, blockieren Paperless-Ingest-Worker bei der Verarbeitung von Dokumenten.
 
 ### Modell manuell pullen / überprüfen

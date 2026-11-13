@@ -1,9 +1,13 @@
 ---
-- name: Update apt cache and upgrade system
+- name: Update apt cache
   ansible.builtin.apt:
     update_cache: yes
-    upgrade: dist
     cache_valid_time: 3600
+
+- name: Upgrade system packages (manual only via --tags system_upgrade)
+  ansible.builtin.apt:
+    upgrade: dist
+  tags: [ system_upgrade, never ]
 
 - name: Install essential base packages
   ansible.builtin.apt:
@@ -24,7 +28,6 @@
       - inotify-tools
       - rsync
       - sudo
-      - ufw
       - fail2ban
       - zsh
       - fzf
@@ -32,6 +35,12 @@
       - zsh-autosuggestions
       - zsh-syntax-highlighting
     state: present
+
+- name: Ensure fail2ban service is running and enabled
+  ansible.builtin.systemd:
+    name: fail2ban
+    enabled: yes
+    state: started
 
 - name: Configure DNS resolution (resolv.conf)
   ansible.builtin.copy:
@@ -59,12 +68,36 @@
     group: root
   notify: Restart systemd-networkd
 
+- name: Ensure /etc/apt/keyrings directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Add Docker official GPG key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/debian/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
+
+- name: Add Docker official repository
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: [deb]
+    uris: https://download.docker.com/linux/debian
+    suites: ["{{ ansible_distribution_release | default('trixie') }}"]
+    components: [stable]
+    architectures: [amd64]
+    signed_by: /etc/apt/keyrings/docker.asc
+    state: present
+
 - name: Install Docker and Docker Compose
   ansible.builtin.apt:
     name:
       - docker.io
       - docker-compose-plugin
     state: present
+    update_cache: yes
 
 - name: Ensure Docker service is running and enabled
   ansible.builtin.systemd:
@@ -131,7 +164,8 @@
 - name: Configure NVIDIA Container Runtime to use CDI mode (prevents systemd daemon-reload cgroup device loss)
   ansible.builtin.lineinfile:
     path: /etc/nvidia-container-runtime/config.toml
-    regexp: '^mode\s*='
+    regexp: '^#?\s*mode\s*='
+    insertafter: '^\[nvidia-container-runtime\]'
     line: 'mode = "cdi"'
     owner: root
     group: root

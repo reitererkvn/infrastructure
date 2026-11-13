@@ -4,8 +4,16 @@
 # 2. Spiegelt lokale SSD-Snapshots 1:1 auf die HDD (inkl. Bereinigung abgelaufener Snapshots).
 # 3. Erzeugt nächtliche Snapper-Snapshots für die HDD-Primärarchive (immich-hdd, paperless-hdd).
 
+set -uo pipefail
+
 DEST_BASE="/mnt/HDD-01/backups/nas"
 TRIGGER_DIR="/var/lib/nas-sync-triggers"
+ERRORS=0
+
+record_error() {
+    echo "[FEHLER] $1" >&2
+    ERRORS=$((ERRORS + 1))
+}
 
 dump_databases() {
     echo "[+] Erzeuge konsistente Datenbank-Dumps vor Snapshot-Erstellung..."
@@ -13,46 +21,74 @@ dump_databases() {
     # PostgreSQL Dumps (komprimiert via zstd)
     if sudo docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep -qx "immich_postgres"; then
         echo "  -> PostgreSQL Dump: immich_postgres"
-        sudo docker exec immich_postgres pg_dumpall -c -U postgres | sudo zstd -q -f -o /opt/docker/immich/db_dump.sql.zst
+        sudo docker exec immich_postgres pg_dumpall -c -U "{{ IMMICH_DB_USERNAME | default('postgres') }}" | sudo zstd -q -f -o /opt/docker/immich/db_dump.sql.zst
+        local rc=("${PIPESTATUS[@]}")
+        if [ "${rc[0]}" -ne 0 ] || [ "${rc[1]}" -ne 0 ]; then
+            record_error "PostgreSQL Dump für immich_postgres fehlgeschlagen (pg_dumpall=${rc[0]}, zstd=${rc[1]})"
+        fi
     fi
 
     if sudo docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep -qx "paperless_db"; then
         echo "  -> PostgreSQL Dump: paperless_db"
         sudo docker exec paperless_db pg_dumpall -c -U paperless | sudo zstd -q -f -o /opt/docker/paperless/db_dump.sql.zst
+        local rc=("${PIPESTATUS[@]}")
+        if [ "${rc[0]}" -ne 0 ] || [ "${rc[1]}" -ne 0 ]; then
+            record_error "PostgreSQL Dump für paperless_db fehlgeschlagen (pg_dumpall=${rc[0]}, zstd=${rc[1]})"
+        fi
     fi
 
     if sudo docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep -qx "semaphore-db"; then
         echo "  -> PostgreSQL Dump: semaphore-db"
         sudo docker exec semaphore-db pg_dumpall -c -U semaphore | sudo zstd -q -f -o /opt/docker/semaphore/db_dump.sql.zst
+        local rc=("${PIPESTATUS[@]}")
+        if [ "${rc[0]}" -ne 0 ] || [ "${rc[1]}" -ne 0 ]; then
+            record_error "PostgreSQL Dump für semaphore-db fehlgeschlagen (pg_dumpall=${rc[0]}, zstd=${rc[1]})"
+        fi
     fi
 
     # SQLite Online-Backups (WAL-safe via sqlite3 .backup)
     if [ -f /opt/docker/vaultwarden/data/db.sqlite3 ]; then
         echo "  -> SQLite Backup: vaultwarden"
-        sudo sqlite3 /opt/docker/vaultwarden/data/db.sqlite3 ".backup '/opt/docker/vaultwarden/data/db_backup.sqlite3'"
+        if ! sudo sqlite3 /opt/docker/vaultwarden/data/db.sqlite3 ".backup '/opt/docker/vaultwarden/data/db_backup.sqlite3'"; then
+            record_error "SQLite Backup für vaultwarden fehlgeschlagen"
+        fi
     fi
 
     if [ -f /opt/docker/grafana/data/grafana.db ]; then
         echo "  -> SQLite Backup: grafana"
-        sudo sqlite3 /opt/docker/grafana/data/grafana.db ".backup '/opt/docker/grafana/data/grafana_backup.db'"
+        if ! sudo sqlite3 /opt/docker/grafana/data/grafana.db ".backup '/opt/docker/grafana/data/grafana_backup.db'"; then
+            record_error "SQLite Backup für grafana fehlgeschlagen"
+        fi
     fi
 
     if [ -f /opt/docker/homeassistant/config/home-assistant_v2.db ]; then
         echo "  -> SQLite Backup: homeassistant"
-        sudo sqlite3 /opt/docker/homeassistant/config/home-assistant_v2.db ".backup '/opt/docker/homeassistant/config/home-assistant_v2_backup.db'"
+        if ! sudo sqlite3 /opt/docker/homeassistant/config/home-assistant_v2.db ".backup '/opt/docker/homeassistant/config/home-assistant_v2_backup.db'"; then
+            record_error "SQLite Backup für homeassistant fehlgeschlagen"
+        fi
     fi
 }
 
 sync_local() {
     local src_dir=$1
     local dst_dir=$2
+    local sync_failed=0
 
-    sudo mkdir -p "$dst_dir"
+    if [ ! -d "$src_dir" ]; then
+        record_error "Snapshot-Quellverzeichnis fehlt: $src_dir"
+        return 1
+    fi
+
+    sudo mkdir -p "$dst_dir" || {
+        record_error "Zielverzeichnis konnte nicht erstellt werden: $dst_dir"
+        return 1
+    }
 
     # 1. Neue Snapshots von SSD auf HDD übertragen (inkrementell)
     for snap in $(sudo find "$src_dir" -maxdepth 1 -name "[0-9]*" | sort -V); do
+        local id
         id=$(basename "$snap")
-        snap_path="$snap/snapshot"
+        local snap_path="$snap/snapshot"
 
         if [ ! -d "$dst_dir/$id" ] && [ -d "$snap_path" ]; then
             echo "--> Lokale Spiegelung ID $id nach $dst_dir..."
@@ -73,26 +109,44 @@ sync_local() {
                 sudo btrfs send -p "$src_dir/$last_id/snapshot" "$snap_path" | sudo btrfs receive "$dst_dir/"
             fi
 
+            local rc=("${PIPESTATUS[@]}")
+            if [ "${rc[0]}" -ne 0 ] || [ "${rc[1]}" -ne 0 ]; then
+                record_error "btrfs send/receive für $src_dir/$id fehlgeschlagen (send=${rc[0]}, receive=${rc[1]})"
+                sudo btrfs subvolume delete "$dst_dir/snapshot" 2>/dev/null || sudo rm -rf "$dst_dir/snapshot" 2>/dev/null
+                sync_failed=1
+                continue
+            fi
+
             if [ -d "$dst_dir/snapshot" ]; then
-                sudo mv "$dst_dir/snapshot" "$dst_dir/$id"
+                if ! sudo mv "$dst_dir/snapshot" "$dst_dir/$id"; then
+                    record_error "Konnte empfangenen Snapshot $dst_dir/snapshot nicht nach $dst_dir/$id verschieben"
+                    sync_failed=1
+                fi
+            else
+                record_error "Empfangener Snapshot $dst_dir/snapshot nach btrfs receive nicht gefunden"
+                sync_failed=1
             fi
         fi
     done
 
-    # 2. 1:1 Bereinigung: Lösche Snapshots auf der HDD, die Snapper auf der SSD bereits aufgeräumt hat
-    for hdd_id in $(ls -1 "$dst_dir" 2>/dev/null | grep -E "^[0-9]+$" | sort -n); do
-        if [ ! -d "$src_dir/$hdd_id/snapshot" ]; then
-            echo "--> Bereinige abgelaufenen Snapshot ID $hdd_id aus $dst_dir..."
-            sudo btrfs subvolume delete "$dst_dir/$hdd_id" || sudo rm -rf "$dst_dir/$hdd_id"
-        fi
-    done
+    # 2. 1:1 Bereinigung: Nur ausführen, wenn Send erfolgreich war
+    if [ "$sync_failed" -eq 0 ]; then
+        for hdd_id in $(ls -1 "$dst_dir" 2>/dev/null | grep -E "^[0-9]+$" | sort -n); do
+            if [ ! -d "$src_dir/$hdd_id/snapshot" ]; then
+                echo "--> Bereinige abgelaufenen Snapshot ID $hdd_id aus $dst_dir..."
+                if ! sudo btrfs subvolume delete "$dst_dir/$hdd_id"; then
+                    sudo rm -rf "$dst_dir/$hdd_id" || record_error "Bereinigung von $dst_dir/$hdd_id fehlgeschlagen"
+                fi
+            fi
+        done
+    fi
 }
 
 # Schritt 1: Datenbank-Dumps erzeugen und frische SSD-Snapshots sicherstellen
 dump_databases
 echo "[+] Erzeuge aktuelle SSD-Snapshots nach DB-Dump..."
-sudo snapper -c root create --cleanup-algorithm number --description "Nightly Sync"
-sudo snapper -c immich create --cleanup-algorithm number --description "Nightly Sync"
+sudo snapper -c root create --cleanup-algorithm number --description "Nightly Sync" || record_error "Snapper-Snapshot für root fehlgeschlagen"
+sudo snapper -c immich create --cleanup-algorithm number --description "Nightly Sync" || record_error "Snapper-Snapshot für immich fehlgeschlagen"
 
 # Schritt 2: Lokaler Snapshot-Sync (SSD -> HDD, 1:1 Spiegelung)
 echo "[+] Starte lokalen Snapshot-Sync (SSD -> HDD)..."
@@ -102,10 +156,17 @@ sync_local "/opt/docker/immich/.snapshots" "$DEST_BASE/immich"
 
 # Schritt 3: Nächtliche Snapper-Snapshots für Primärdaten auf der HDD (mit Number-Cleanup)
 echo "[+] Erzeuge Snapper-Snapshots für HDD-Archive (immich-hdd & paperless-hdd)..."
-sudo snapper -c immich-hdd create --cleanup-algorithm number --description "Nightly Archive Backup"
-sudo snapper -c paperless-hdd create --cleanup-algorithm number --description "Nightly Archive Backup"
+sudo snapper -c immich-hdd create --cleanup-algorithm number --description "Nightly Archive Backup" || record_error "Snapper-Snapshot für immich-hdd fehlgeschlagen"
+sudo snapper -c paperless-hdd create --cleanup-algorithm number --description "Nightly Archive Backup" || record_error "Snapper-Snapshot für paperless-hdd fehlgeschlagen"
 
-# Schritt 4: Cloud-Backup triggern
+# Schritt 4: Cloud-Backup nur bei fehlerfreiem Lauf triggern
+if [ "$ERRORS" -gt 0 ]; then
+    echo "[FEHLER] Lokaler Snapshot-Sync mit $ERRORS Fehler(n) beendet! Cloud-Trigger wird übersprungen." >&2
+    exit 1
+fi
+
 echo "[+] Lokaler Sync abgeschlossen. Erstelle Trigger-Datei für Cloud-Backup (SSD-based)..."
-sudo mkdir -p "$TRIGGER_DIR"
-sudo touch "$TRIGGER_DIR/nas_local_sync.done"
+sudo mkdir -p "$TRIGGER_DIR" && sudo touch "$TRIGGER_DIR/nas_local_sync.done" || {
+    echo "[FEHLER] Trigger-Datei konnte nicht aktualisiert werden." >&2
+    exit 1
+}

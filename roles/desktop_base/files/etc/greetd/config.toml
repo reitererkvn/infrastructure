@@ -2,7 +2,6 @@
 # Das VT (Virtual Terminal), auf dem der Login erscheint
 vt = 1
 
-[default_session]
 # --time: Zeigt die Uhrzeit an
 # --remember: Merkt sich den letzten User
 # --cmd: Der Befehl, der nach dem Login ausgeführt wird

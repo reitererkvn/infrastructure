@@ -26,23 +26,33 @@ The infrastructure is orchestrated from a single master playbook (`site.yml`) ma
 
 ### NAS Infrastructure (`nas`)
 
-*   **`nas_storage`**: Automates BTRFS subvolume creation, MergerFS pooling, and configures Snapper for automated snapshots.
-*   **`nas_base`**: Bootstraps the core OS, configures DNS (`resolv.conf`), package managers, and deploys a cross-platform Zsh environment.
-*   **`nas_backups`**: Deploys multi-tiered backup strategies. Orchestrates local snapshots, cloud synchronization via Restic/Rclone, and configures dynamic hardware-level scripts (e.g., intelligent HDD spindown logic via `hdparm`).
-*   **`nas_docker`**: Deploys the self-hosted application stack (Paperless-ngx, Ollama, Home Assistant, Prometheus, Grafana, Immich, Vaultwarden, AdGuard, Caddy). Dynamically templates `docker-compose.yml` files and securely injects credentials at runtime.
+*   **`nas_storage`**: Automates BTRFS subvolume creation (SSD & HDD), MergerFS pooling (`/lib/immich`), and configures Snapper for automated snapshots.
+*   **`nas_base`**: Bootstraps the core OS, configures DNS (`resolv.conf`), official Docker & NVIDIA repositories, `fail2ban`, `hdparm` spindown, and deploys a cross-platform Zsh environment.
+*   **`nas_backups`**: Deploys multi-tiered backup strategies. Orchestrates transactional DB dumps (`pg_dumpall`, `sqlite3`), local BTRFS snapshot sync, cloud synchronization via Restic/Rclone, and SSD-to-HDD Immich tiering (`immich-mover.sh`).
+*   **`nas_docker`**: Deploys the self-hosted application stack (Paperless-ngx, Ollama, Home Assistant + Matter, Prometheus, Grafana, Immich, Vaultwarden, AdGuard, Caddy, Cloudflared, Semaphore). Dynamically templates `docker-compose.yml` files and securely injects credentials at runtime.
 
 ### Desktop Infrastructure (`desktops`)
 
-*   **`desktop_base`**: Configures the Arch/CachyOS baseline. Deploys package manager configurations (`pacman.conf`, `makepkg.conf`), the `greetd` display manager, advanced Udev hardware rules, and automated maintenance timers (BTRFS cleanup, AUR cache clearing).
+*   **`desktop_base`**: Configures the Arch/CachyOS baseline. Deploys package manager configurations (`pacman.conf`, `makepkg.conf`), the `greetd` display manager, `prometheus-node-exporter`, advanced Udev hardware rules, and automated snapshot backup timers.
+
+---
+
+## 📋 Prerequisites (Bootstrap)
+
+Before running against fresh hardware, ensure the following baseline exists:
+1.  **Ansible Collections**: Install required collections via `ansible-galaxy collection install -r requirements.yml`.
+2.  **SSH & Sudo Access**: Passwordless or `--ask-become-pass` sudo privileges for user `kevin`, SSH public key deployed, and `nas-01` host key present in `~/.ssh/known_hosts`.
+3.  **NAS Drivers & VPN**: NVIDIA proprietary kernel driver (`nvidia-driver` 550 for GTX 1070 Ti) and `tailscaled` logged in with **Key Expiry disabled**.
+4.  **Restic Cloud Repository**: Initialized once via `restic init` for both `nas_restic_repo` and `homeserver_restic_repo`.
 
 ---
 
 ## 🔒 Secret Management (Ansible Vault)
 
-To maintain public repository security, all credentials (database passwords, OAuth tokens, API keys) are stored in an encrypted Ansible Vault file:
-`group_vars/nas/secrets.yml`
+To maintain public repository security, all credentials (database passwords, OAuth tokens, API keys) are stored in encrypted Ansible Vault files:
+`group_vars/nas/secrets.yml` and `group_vars/desktops/secrets.yml`
 
-This file is encrypted using AES-256. During deployment, Ansible decrypts this file in-memory and injects the variables into Jinja2 templates (e.g., generating temporary `.env` files for Docker containers).
+These files are encrypted using AES-256. During deployment, Ansible decrypts them in-memory and injects the variables into Jinja2 templates (e.g., generating `.env` files for Docker containers).
 
 ### Managing Secrets
 To view or edit the encrypted secrets, the Ansible Vault Master Password is required:
@@ -59,18 +69,19 @@ This repository is designed to be executed both manually via the CLI and automat
 ### Manual Execution (CLI)
 
 ```bash
-# Execute the full infrastructure deployment
-ansible-playbook site.yml -i inventory.ini --ask-vault-pass
+# Execute the full infrastructure deployment (without automatic dist-upgrade or image pulls)
+ansible-playbook site.yml -i inventory.ini --ask-vault-pass --ask-become-pass
 
 # Execute granular updates using tags (e.g., only update Docker configurations)
-ansible-playbook site.yml -i inventory.ini --ask-vault-pass --tags docker
+ansible-playbook nas.yml -i inventory.ini --ask-vault-pass --ask-become-pass --tags docker
 
-# Target a specific environment
-ansible-playbook site.yml -i inventory.ini --ask-vault-pass -l nas
+# Explicitly pull new container images or run full apt dist-upgrade
+ansible-playbook nas.yml -i inventory.ini --ask-vault-pass --ask-become-pass --tags docker,pull_images
+ansible-playbook nas.yml -i inventory.ini --ask-vault-pass --ask-become-pass --tags base,system_upgrade
 ```
 
 ### Semaphore (CI/CD) Integration
 When integrating with an automation UI like Semaphore:
-1. Define a Key Store Credential for the **Vault Password**.
+1. Define a Key Store Credential for the **Vault Password** and **SSH Key / Become Password**.
 2. Link this repository.
-3. Create Task Templates pointing to `site.yml`. Use the "Limit" field (e.g., `nas` or `desktops`) and "Extra CLI Arguments" (e.g., `--tags docker`) to mimic granular playbook execution.
+3. Create Task Templates pointing to `nas.yml` or `desktop.yml`. Use `--tags docker` (note: Semaphore automatically protects itself unless `infrastructure_only` is passed).
